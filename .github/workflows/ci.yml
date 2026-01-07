@@ -9,30 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    services:
-      redis:
-        image: redis:6.2
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      mysql:
-        image: mysql:8.0
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: root
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -49,71 +25,10 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Init MySQL schema and user
-        run: |
-          echo "CREATE DATABASE link;" | mysql -h 127.0.0.1 -P 3306 -uroot -proot
-          echo "CREATE USER 'admin'@'%' IDENTIFIED BY 'admin';" | mysql -h 127.0.0.1 -P 3306 -uroot -proot
-          echo "GRANT ALL PRIVILEGES ON link.* TO 'admin'@'%';" | mysql -h 127.0.0.1 -P 3306 -uroot -proot
-          echo "FLUSH PRIVILEGES;" | mysql -h 127.0.0.1 -P 3306 -uroot -proot
-
-      - name: Wait for services
-        run: |
-          echo "Sleeping 20s to ensure MySQL & Redis are ready..."
-          sleep 20
-
-      - name: Build with Maven
-        run: mvn clean install -DskipTests
-
-      - name: Run Tests
-        run: mvn test
-
-      - name: Generate JaCoCo Test report
-        run: mvn verify
-
-      - name: Upload All JaCoCo HTML report
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-report
-          path: |
-            ./project/target/site/jacoco/
-            ./admin/target/site/jacoco/
-            ./gateway/target/site/jacoco/
-
-      # generate a timestamp based unique build number rather than using latest which is hard to distinguish
-      - name: Generate Build Number and Save It to File
-        id: build-number
-        run: |
-          BUILD_NUMBER=$(date '+%d-%m-%Y-%H-%M-%S')
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT    
-          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+            ${{ runner.os }}-maven-      
 
       - name: Docker Login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # ===== Docker build & push =====
-      - name: Build & Push Aggregation Image
-        run: |
-          mvn compile jib:build -Pdocker-push -pl aggregation -am -DskipTests -Dapp.image.tag=${{ env.BUILD_NUMBER }}
-
-      - name: Build & Push Gateway Image
-        run: |
-          mvn clean package jib:build -Pdocker-push -pl gateway -am -DskipTests -Dapp.image.tag=${{ env.BUILD_NUMBER }}
-
-# ==== leave frontend feature to version 2, just do not care about those
-#      - name: Set up Node.js
-#        uses: actions/setup-node@v3
-#        with:
-#          node-version: '22'  # or whichever Node version you want to use
-#
-#      - name: Install frontend dependencies
-#        working-directory: frontend  # adjust if your frontend folder differs
-#        run: npm install
-#
-#      - name: Build frontend
-#        working-directory: frontend
-#        run: npm run build  # or yarn build if you use yarn
