@@ -1,0 +1,64 @@
+# TODO: Prod Relay on LoadBalancer Here so, need to refine layter
+# ==========================================================
+# DataSource configuration (PostgreSQL)
+# ==========================================================
+dataSources:
+  ds_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: org.postgresql.Driver
+    jdbcUrl: jdbc:postgresql://127.0.0.1:5433/shortlink
+    username: admin
+    password: admin
+    maximumPoolSize: 10
+    minimumIdle: 2
+    connectionTimeoutMilliseconds: 30000
+    idleTimeoutMilliseconds: 600000
+    maxLifetimeMilliseconds: 1800000
+
+# ==========================================================
+# Sharding rules
+# ==========================================================
+rules:
+  - !SHARDING
+    tables:
+
+      # --------------------------------------------------
+      # Short link main table (4 shards)
+      # --------------------------------------------------
+      t_link:
+        actualDataNodes: ds_0.t_link_${0..3}
+        tableStrategy:
+          standard:
+            shardingColumn: gid
+            shardingAlgorithmName: link_table_hash_mod
+
+      # --------------------------------------------------
+      # Short link redirect table (4 shards)
+      # --------------------------------------------------
+      t_link_goto:
+        actualDataNodes: ds_0.t_link_goto_${0..3}
+        tableStrategy:
+          standard:
+            shardingColumn: full_short_url
+            shardingAlgorithmName: link_goto_table_hash_mod
+
+    # --------------------------------------------------
+    # Sharding algorithms
+    # --------------------------------------------------
+    shardingAlgorithms:
+
+      link_table_hash_mod:
+        type: HASH_MOD
+        props:
+          sharding-count: 4
+
+      link_goto_table_hash_mod:
+        type: HASH_MOD
+        props:
+          sharding-count: 4
+
+# ==========================================================
+# ShardingSphere properties
+# ==========================================================
+props:
+  sql-show: true

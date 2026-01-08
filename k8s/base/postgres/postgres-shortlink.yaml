@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-shortlink
+  namespace: shortlink
+spec:
+  serviceName: postgres-shortlink
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      database: shortlink
+  template:
+    metadata:
+      labels:
+        app: postgres
+        database: shortlink
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_USER
+              value: "admin"
+            - name: POSTGRES_PASSWORD
+              value: "admin"
+            - name: POSTGRES_DB
+              value: "shortlink"
+            - name: PGDATA
+              value: "/data/postgres"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /data/postgres
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-shortlink-pvc
+        - name: init-sql
+          configMap:
+            name: postgres-shortlink-init-cm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-shortlink
+  namespace: shortlink
+spec:
+  ports:
+    - port: 5433
+      targetPort: 5432
+  selector:
+    app: postgres
+    database: shortlink
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-shortlink-init-cm
+  namespace: shortlink
+data:
+  00_init_db.sql: |
+    -- SQL to create shortlink database, can patch later
+    CREATE DATABASE shortlink;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-shortlink-pvc
+  namespace: shortlink
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
