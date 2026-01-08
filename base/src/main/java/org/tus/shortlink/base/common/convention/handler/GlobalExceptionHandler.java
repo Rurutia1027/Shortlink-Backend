@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.tus.shortlink.base.common.convention.errorcode.BaseErrorCode;
 import org.tus.shortlink.base.common.convention.exception.AbstractException;
+import org.tus.shortlink.base.common.convention.exception.ShortLinkNotFoundException;
 import org.tus.shortlink.base.common.convention.result.Result;
 import org.tus.shortlink.base.common.convention.result.Results;
 
@@ -25,7 +26,6 @@ import java.util.Optional;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
     /**
      * Intercepts parameter validation exceptions
      */
@@ -77,5 +77,21 @@ public class GlobalExceptionHandler {
             return request.getRequestURL().toString();
         }
         return request.getRequestURL().toString() + "?" + request.getQueryString();
+    }
+
+    /**
+     * Handles short link not found exceptions (API access)
+     */
+    @ExceptionHandler(ShortLinkNotFoundException.class)
+    public Result handleShortLinkNotFound(
+            HttpServletRequest request,
+            ShortLinkNotFoundException ex
+    ) {
+        log.warn(
+                "[{}] {} [short-link-not-found]",
+                request.getMethod(),
+                getUrl(request)
+        );
+        return Results.failure(ex);
     }
 }

@@ -2,28 +2,29 @@ package org.tus.shortlink.base.common.convention.exception;
 
 import org.tus.shortlink.base.common.convention.errorcode.BaseErrorCode;
 import org.tus.shortlink.base.common.convention.errorcode.IErrorCode;
+import org.tus.shortlink.base.common.enums.ShortLinkErrorCodeEnum;
 
-public class ClientException extends AbstractException {
+public class ShortLinkNotFoundException extends AbstractException {
 
-    public ClientException(IErrorCode errorCode) {
+    public ShortLinkNotFoundException(IErrorCode errorCode) {
         this(null, null, errorCode);
     }
 
-    public ClientException(String message) {
-        this(message, null, BaseErrorCode.CLIENT_ERROR);
+    public ShortLinkNotFoundException(String message) {
+        this(message, null, ShortLinkErrorCodeEnum.SHORT_LINK_NOT_FOUND);
     }
 
-    public ClientException(String message, IErrorCode errorCode) {
+    public ShortLinkNotFoundException(String message, IErrorCode errorCode) {
         this(message, null, errorCode);
     }
 
-    public ClientException(String message, Throwable throwable, IErrorCode errorCode) {
+    public ShortLinkNotFoundException(String message, Throwable throwable, IErrorCode errorCode) {
         super(message, throwable, errorCode);
     }
 
     @Override
     public String toString() {
-        return "ClientException{" +
+        return "ShortLinkNotFoundException{" +
                 "code='" + errorCode + "'," +
                 "message='" + errorMessage + "'" +
                 '}';
