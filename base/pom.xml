@@ -8,6 +8,5 @@
         <artifactId>shortlink-parent</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>shortlink-admin</artifactId>
-
+    <artifactId>shortlink-base</artifactId>
 </project>
