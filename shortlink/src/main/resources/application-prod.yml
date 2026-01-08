@@ -53,4 +53,4 @@ logging:
     root: INFO
 
 shardingsphere:
-  config-file: classpath:shardingsphere-config-prod.yaml
+  config-file: classpath:shardingsphere-config-dev.yaml
