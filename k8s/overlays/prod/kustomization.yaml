@@ -1,0 +1,16 @@
+namespace: shortlink
+
+resources:
+  - namespace.yaml
+  - ../../base/postgres/
+  - ../../base/redis/
+
+patches:
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: patch-postgres-admin.yaml
+
+  - target:
+      kind: StatefulSet
+    patch: patch-postgres-shortlink.yaml

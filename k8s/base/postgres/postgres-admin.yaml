@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-admin
+  namespace: shortlink
+spec:
+  serviceName: postgres-admin
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      database: admin
+  template:
+    metadata:
+      labels:
+        app: postgres
+        database: admin
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_USER
+              value: "admin"
+            - name: POSTGRES_PASSWORD
+              value: "admin"
+            - name: POSTGRES_DB
+              value: "admin"
+            - name: PGDATA
+              value: "/data/postgres"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /data/postgres
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-admin-pvc
+        - name: init-sql
+          configMap:
+            name: postgres-admin-init-cm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-admin
+  namespace: shortlink
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+    database: admin
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-admin-init-cm
+  namespace: shortlink
+data:
+  00_init_db.sql: |
+    -- SQL to create admin database, can patch later
+    CREATE DATABASE admin;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-admin-pvc
+  namespace: shortlink
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
