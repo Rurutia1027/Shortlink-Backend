@@ -9,4 +9,12 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
     <artifactId>shortlink-clients</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.tus.shortlink</groupId>
+            <artifactId>shortlink-base</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
 </project>
