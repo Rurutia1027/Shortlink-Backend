@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -25,14 +26,62 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-maven-      
+            ${{ runner.os }}-maven-
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Install Kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.21.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          kind version
+
+      - name: Start Kind Cluster and Deploy Dependencies
+        run: |
+          bash bin/k8s-up-ci.sh
+          
+          # Deploy Postgres *2 and Redis *1 for Project Mvn Verify
+          kubectl apply -k k8s/overlays/dev/
+          
+          # Waiting for all pods running 
+          echo "Waiting 30s for PostgreSQL and Redis to be ready..."
+          sleep 30
+
+      - name: Get All Pods, Svcs Deployed on Kind in namespace shortlink
+        run: |
+          echo "pending for 30s, wait for all svc and pods get ready"
+          sleep 30
+          
+          echo "all pods in shortlink namespace"
+          kubectl get pods -n shortlink 
+          
+          echo "all svcs in shortlink namespace"
+          kubectl get svcs -n shortlink
+
+      - name: Port-forward PostgreSQL and Redis
+        run: |
+          bash bin/port-forward.sh
 
       - name: Build Project
         run: |
           mvn clean package
 
-      - name: Docker Login
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Verify Project
+        run: |
+          mvn clean verify 
+
+      - name: Shutdown Kind Cluster
+        if: always()
+        run: |
+          bash bin/k8s-down.sh
+
+#      - name: Docker Login
+#        uses: docker/login-action@v2
+#        with:
+#          username: ${{ secrets.DOCKER_USERNAME }}
+#          password: ${{ secrets.DOCKER_PASSWORD }}
