@@ -1,7 +1,4 @@
--- Flyway Migration: Create sharded t_link tables (4 shards)
--- Comments converted to English
--- Create the table using this sequence for the primary key
-CREATE TABLE t_link_0
+CREATE TABLE t_link
 (
     id              BIGINT PRIMARY KEY DEFAULT nextval('t_link_id_seq'),
     domain          VARCHAR(128),
@@ -26,21 +23,3 @@ CREATE TABLE t_link_0
     CONSTRAINT uniq_full_short_url UNIQUE (full_short_url, del_time)
 );
 
-
--- Shard 1
-CREATE TABLE t_link_1
-(
-    LIKE t_link_0 INCLUDING ALL
-);
-
--- Shard 2
-CREATE TABLE t_link_2
-(
-    LIKE t_link_0 INCLUDING ALL
-);
-
--- Shard 3
-CREATE TABLE t_link_3
-(
-    LIKE t_link_0 INCLUDING ALL
-);

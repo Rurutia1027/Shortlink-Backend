@@ -41,9 +41,6 @@ public class ShortLink extends BaseEntity {
     @Column(nullable = false)
     private Integer clickNum = 0;
 
-    /**
-     * Sharding key — MUST NOT be null
-     */
     @Column(nullable = false, length = 32)
     private String gid;
 
