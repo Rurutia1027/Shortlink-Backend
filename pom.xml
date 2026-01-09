@@ -24,7 +24,6 @@
         <module>shortlink</module>
         <module>identity</module>
         <module>clients</module>
-        <module>sharding</module>
     </modules>
 
     <!-- =========================
