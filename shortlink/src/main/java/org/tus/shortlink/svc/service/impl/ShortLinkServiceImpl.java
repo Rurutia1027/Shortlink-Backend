@@ -1,5 +1,6 @@
 package org.tus.shortlink.svc.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.text.StrBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -61,6 +62,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .map(p -> ":" + p)
                 .orElse("");
         String fullShortUrl = serverName + serverPort + "/" + shortUri;
+
         // Query ShortLinkGoto
         Optional<ShortLinkGoto> linkGotoOpt =
                 shortLinkGotoRepository.findByFullShortUrl(fullShortUrl);
@@ -291,7 +293,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     }
 
     @Override
-    public ShortLinkPageRespDTO pageShortLink(ShortLinkPageReqDTO requestParam) {
+    public Page<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam) {
         Sort sort = Sort.by(Sort.Direction.DESC, "createTime");
 
         if ("createTime_asc".equalsIgnoreCase(requestParam.getOrderTag())) {
@@ -314,16 +316,26 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 );
 
         return page.map(each -> {
-            ShortLinkPageRespDTO dto = BeanUtil.toBean(each, ShortLinkPageRespDTO.class);
+            ShortLinkPageRespDTO dto = BeanUtil.toBean(each , ShortLinkPageRespDTO.class);
             dto.setDomain("http://" + dto.getDomain());
-            return dto;
+            return  dto;
         });
     }
 
+
+    /**
+     * List the number of active short links per group.
+     *
+     * @param gidList List of group identifiers
+     * @return List of ShortLinkGroupCountQueryRespDTO with gid and active short link count
+     */
     @Override
-    public List<ShortLinkGroupCountQueryRespDTO> listGroupShortLinkCount(List<String> groupIds) {
-        // TODO
-        return List.of();
+    public List<ShortLinkGroupCountQueryRespDTO> listGroupShortLinkCount(List<String> gidList) {
+        if (gidList == null || gidList.isEmpty()) {
+            return List.of();
+        }
+
+        return shortLinkRepository.countActiveShortLinksByGroup(gidList);
     }
 
 

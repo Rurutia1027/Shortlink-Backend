@@ -19,7 +19,6 @@ import java.time.Instant;
 
 // TODO: abstract to Persistence Facade in future
 // TODO: manage L2 cache / session clear strategy
-
 @Service
 @RequiredArgsConstructor
 public class RecycleBinServiceImpl implements RecycleBinService {

@@ -2,6 +2,7 @@ package org.tus.shortlink.svc.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.data.domain.Page;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkPageReqDTO;
@@ -15,7 +16,8 @@ import java.io.IOException;
 import java.util.List;
 
 public interface ShortLinkService {
-    void restoreUrl(String shortUri, HttpServletRequest httpRequest, HttpServletResponse httpResponse) throws IOException;
+    void restoreUrl(String shortUrl, HttpServletRequest httpRequest,
+                    HttpServletResponse httpResponse) throws IOException;
 
     ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam);
 
@@ -25,7 +27,7 @@ public interface ShortLinkService {
 
     void updateShortLink(ShortLinkUpdateReqDTO requestParam);
 
-    ShortLinkPageRespDTO pageShortLink(ShortLinkPageReqDTO requestParam);
+    Page<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam);
 
     List<ShortLinkGroupCountQueryRespDTO> listGroupShortLinkCount(List<String> groupIds);
 }

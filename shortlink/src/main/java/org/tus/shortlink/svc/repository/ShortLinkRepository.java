@@ -1,6 +1,7 @@
 package org.tus.shortlink.svc.repository;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import org.tus.shortlink.svc.entity.ShortLink;
 
 import java.util.List;
@@ -129,4 +131,25 @@ public interface ShortLinkRepository extends JpaRepository<ShortLink, Long> {
             @Param("enableStatus") int enableStatus,
             Pageable pageable
     );
+
+    Page<ShortLink> findByGidAndDelFlagAndEnableStatus(String gid, int delFlag,
+                                                       int enableStatus, Pageable pageable);
+
+
+    @Query("""
+                SELECT new org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO(
+                    s.gid, CAST(COUNT(s.id) AS integer)
+                )
+                FROM ShortLink s
+                WHERE s.gid IN :gids
+                  AND s.enableStatus = 0
+                  AND s.delFlag = 0
+                  AND (s.delTime IS NULL OR s.delTime = 0)
+                GROUP BY s.gid
+            """)
+    List<ShortLinkGroupCountQueryRespDTO> countActiveShortLinksByGroup(@Param("gids") List<String> gids);
+
+    Page<ShortLink> findByGidInAndEnableStatusAndDelTimeIsNotNull(List<String> gidList,
+                                                                  int enableStatus,
+                                                                  PageRequest pageable);
 }
