@@ -28,9 +28,3 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:123456}
-
-
-
-
-shardingsphere:
-  config-file: classpath:shardingsphere-config-dev.yaml

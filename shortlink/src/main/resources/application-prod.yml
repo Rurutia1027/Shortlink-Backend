@@ -51,6 +51,3 @@ management:
 logging:
   level:
     root: INFO
-
-shardingsphere:
-  config-file: classpath:shardingsphere-config-dev.yaml
