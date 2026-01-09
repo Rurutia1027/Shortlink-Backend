@@ -15,6 +15,7 @@ import java.time.Instant;
 /**
  * ShortLink entity mapped to database via JPA/Hibernate
  */
+
 @Entity
 @Table(name = "t_link")
 @Getter
@@ -23,106 +24,46 @@ import java.time.Instant;
 @AllArgsConstructor
 @Builder
 public class ShortLink extends BaseEntity {
-    /**
-     * Domain of the short link.
-     */
-    @Column(nullable = false)
+
+    @Column(nullable = false, length = 128)
     private String domain;
 
-    /**
-     * Short URI (unique code for the short link).
-     */
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, length = 64)
     private String shortUri;
 
-    /**
-     * Full short URL.
-     */
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, length = 256)
     private String fullShortUrl;
 
-    /**
-     * Original/origin URL.
-     */
     @Column(nullable = false, length = 2048)
     private String originUrl;
 
-    /**
-     * Click count.
-     */
     @Column(nullable = false)
     private Integer clickNum = 0;
 
     /**
-     * Group ID.
+     * Sharding key — MUST NOT be null
      */
-    @Column(nullable = true)
+    @Column(nullable = false, length = 32)
     private String gid;
 
-    /**
-     * Enable status: 0 = enabled, 1 = disabled
-     */
     @Column(nullable = false)
     private Integer enableStatus = 0;
 
-    /**
-     * Created type: 0 = API created, 1 = Console created
-     */
     @Column(nullable = false)
     private Integer createdType = 0;
 
-    /**
-     * Valid date type: 0 = permanent, 1 = custom
-     */
     @Column(nullable = false)
     private Integer validDateType = 0;
 
-    /**
-     * Expiration date for the short link (if custom).
-     */
     private Instant validDate;
 
-    /**
-     * Description.
-     */
-    @Column(name = "`describe`", length = 512)
-    private String describe;
+    @Column(length = 512)
+    private String description;
 
-    /**
-     * Website favicon.
-     */
     private String favicon;
 
-    // TODO PV, UV, UIP should not associated to biz layer code
-    // TODO accumulate of metrics data gonna imple in other models and expose invoke api
-    //  instead
-
-//    /**
-//     * Historical PV/UV/UIP
-//     */
-//    @Column(nullable = false)
-//    private Integer totalPv = 0;
-//
-//    @Column(nullable = false)
-//    private Integer totalUv = 0;
-//
-//    @Column(nullable = false)
-//    private Integer totalUip = 0;
-//
-//    /**
-//     * Today's PV/UV/UIP are transient (not persisted)
-//     */
-//    @Transient
-//    private Integer todayPv;
-//
-//    @Transient
-//    private Integer todayUv;
-//
-//    @Transient
-//    private Integer todayUip;
-
     /**
-     * Deleted timestamp (soft delete)
+     * Soft delete timestamp
      */
     private Long delTime;
 }
