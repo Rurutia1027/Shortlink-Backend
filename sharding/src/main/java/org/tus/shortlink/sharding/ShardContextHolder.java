@@ -7,7 +7,7 @@ public class ShardContextHolder {
         CONTEXT.set(shardKey);
     }
 
-    public static String getShared() {
+    public static String getShard() {
         return CONTEXT.get();
     }
 
