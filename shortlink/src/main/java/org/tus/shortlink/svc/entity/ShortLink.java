@@ -11,6 +11,7 @@ import lombok.Setter;
 import org.tus.shortlink.base.common.database.BaseEntity;
 
 import java.time.Instant;
+import java.util.Date;
 
 /**
  * ShortLink entity mapped to database via JPA/Hibernate
@@ -55,7 +56,7 @@ public class ShortLink extends BaseEntity {
     @Column(nullable = false)
     private Integer validDateType = 0;
 
-    private Instant validDate;
+    private Date validDate;
 
     @Column(length = 512)
     private String description;

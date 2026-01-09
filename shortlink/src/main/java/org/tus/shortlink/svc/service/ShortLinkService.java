@@ -11,10 +11,11 @@ import org.tus.shortlink.base.dto.resp.ShortLinkCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface ShortLinkService {
-    void restoreUrl(String shortUri, HttpServletRequest httpRequest, HttpServletResponse httpResponse);
+    void restoreUrl(String shortUri, HttpServletRequest httpRequest, HttpServletResponse httpResponse) throws IOException;
 
     ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam);
 

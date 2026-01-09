@@ -15,21 +15,26 @@ import java.util.Optional;
 
 @Repository
 public interface ShortLinkRepository extends JpaRepository<ShortLink, Long> {
-    Optional<ShortLink> findByGidAndFullShortUrl(String gid, String fullShortUrl);
 
-    Optional<ShortLink> findByDomainAndShortUri(String domain, String shortUri);
+    /**
+     * Find a short link by gid and full short URL
+     */
+    Optional<ShortLink> findByGidAndFullShortUrl(String gid, String fullShortUrl);
 
     /**
      * Disable short link (move to recycle bin)
+     * enableStatus: 0 -> 1
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional(rollbackFor = Exception.class)
     @Query("""
-                update ShortLink sl
-                   set sl.enableStatus = 1
-                 where sl.fullShortUrl = :fullShortUrl
-                   and sl.gid = :gid
-                   and sl.enableStatus = 0
-                   and sl.delTime is null
+                update ShortLink s
+                   set s.enableStatus = 1
+                 where s.gid = :gid
+                   and s.fullShortUrl = :fullShortUrl
+                   and s.enableStatus = 0
+                   and s.delFlag = 0
+                   and (s.delTime is null or s.delTime = 0)
             """)
     int disableShortLink(
             @Param("gid") String gid,
@@ -37,48 +42,91 @@ public interface ShortLinkRepository extends JpaRepository<ShortLink, Long> {
     );
 
     /**
-     * Find short links in trash by gid list
+     * Page short links in recycle bin by gid list
+     * Recycle bin definition:
+     *  - enableStatus = 1
+     *  - delFlag = 0
+     *  - delTime IS NOT NULL
      */
-    Page<ShortLink> findByGidInAndEnableStatusAndDelTimeIsNotNull(
-            List<String> gidList,
-            Integer enableStatus,
+    @Query("""
+                select s
+                from ShortLink s
+                where s.gid in :gidList
+                  and s.enableStatus = :enableStatus
+                  and s.delFlag = 0
+                  and s.delTime is not null
+            """)
+    Page<ShortLink> pageRecycleBin(
+            @Param("gidList") List<String> gidList,
+            @Param("enableStatus") Integer enableStatus,
             Pageable pageable
     );
 
+    /**
+     * Recover a short link from recycle bin
+     * enableStatus: 1 -> 0
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional(rollbackFor = Exception.class)
+    @Query("""
+                update ShortLink s
+                   set s.enableStatus = 0
+                 where s.gid = :gid
+                   and s.fullShortUrl = :fullShortUrl
+                   and s.enableStatus = 1
+                   and s.delFlag = 0
+            """)
+    int recoverByGidAndFullShortUrl(
+            @Param("gid") String gid,
+            @Param("fullShortUrl") String fullShortUrl
+    );
 
     /**
-     * Recover a short link from recycle bin (enableStatus = 1 -> 0)
-     *
-     * @param gid          Group identifier
-     * @param fullShortUrl Full short URL
-     * @return number of rows updated
+     * Soft delete a short link from recycle bin
+     * delFlag: 0 -> 1
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional(rollbackFor = Exception.class)
-    @Query("UPDATE ShortLink s " +
-            "SET s.enableStatus = 0 " +
-            "WHERE s.gid = :gid " +
-            "AND s.fullShortUrl = :fullShortUrl " +
-            "AND s.enableStatus = 1 " +
-            "AND s.delTime IS NULL")
-    int recoverByGidAndFullShortUrl(String gid, String fullShortUrl);
+    @Query("""
+                update ShortLink s
+                   set s.delTime = :delTime,
+                       s.delFlag = 1
+                 where s.gid = :gid
+                   and s.fullShortUrl = :fullShortUrl
+                   and s.enableStatus = 1
+                   and s.delFlag = 0
+                   and (s.delTime is null or s.delTime = 0)
+            """)
+    int softDeleteByGidAndFullShortUrl(
+            @Param("gid") String gid,
+            @Param("fullShortUrl") String fullShortUrl,
+            @Param("delTime") Long delTime
+    );
 
     /**
-     * Soft delete a short link in the recycle bin
-     *
-     * @param gid          Group identifier
-     * @param fullShortUrl Full short URL
-     * @param delTime      Current timestamp
-     * @return number of rows updated
+     * Find a short link with full state constraints
      */
-    @Modifying
-    @Transactional(rollbackFor = Exception.class)
-    @Query("UPDATE ShortLink s " +
-            "SET s.delTime = :delTime, s.delFlag = 1 " +
-            "WHERE s.gid = :gid " +
-            "AND s.fullShortUrl = :fullShortUrl " +
-            "AND s.enableStatus = 1 " +
-            "AND (s.delTime IS NULL OR s.delTime = 0) " +
-            "AND (s.delFlag IS NULL OR s.delFlag = 0)")
-    int softDeleteByGidAndFullShortUrl(String gid, String fullShortUrl, Long delTime);
+    Optional<ShortLink> findByGidAndFullShortUrlAndEnableStatusAndDelFlag(
+            String gid,
+            String fullShortUrl,
+            Integer enableStatus,
+            Integer delFlag
+    );
+
+    /**
+     * Page short links by gid and status (non-recycle bin use case)
+     */
+    @Query("""
+                select s
+                from ShortLink s
+                where s.gid = :gid
+                  and s.delFlag = :delFlag
+                  and s.enableStatus = :enableStatus
+            """)
+    Page<ShortLink> pageByGidAndStatus(
+            @Param("gid") String gid,
+            @Param("delFlag") int delFlag,
+            @Param("enableStatus") int enableStatus,
+            Pageable pageable
+    );
 }

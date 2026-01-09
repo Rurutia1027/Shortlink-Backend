@@ -14,4 +14,14 @@ public class ShortLinkPageReqDTO {
      * Sorting tag
      */
     private String orderTag;
+
+    /**
+     * Page number (start from 1)
+     */
+    private Integer pageNo = 1;
+
+    /**
+     * Page size
+     */
+    private Integer pageSize = 10;
 }
