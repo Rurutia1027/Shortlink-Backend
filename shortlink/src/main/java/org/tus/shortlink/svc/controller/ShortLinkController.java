@@ -3,6 +3,7 @@ package org.tus.shortlink.svc.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +25,7 @@ import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
 import org.tus.shortlink.svc.entity.ShortLink;
 import org.tus.shortlink.svc.service.ShortLinkService;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -36,17 +38,17 @@ public class ShortLinkController {
      * Redirect short link to original URL
      */
     @GetMapping("/{shortUri}")
-    public void redirectToOriginal(@PathVariable String shortUri,
+    public void redirectToOriginal(@PathVariable String shortUrl,
                                    HttpServletRequest httpRequest,
-                                   HttpServletResponse httpResponse) {
-        shortLinkService.restoreUrl(shortUri, httpRequest, httpResponse);
+                                   HttpServletResponse httpResponse) throws IOException {
+        shortLinkService.restoreUrl(shortUrl, httpRequest, httpResponse);
     }
 
     /**
      * Create a new short link
      */
     @PostMapping("/links/create")
-    // TODO rate-limit later re-design and impl
+    // TODO rate-limit later redesign and impl
     public Result<ShortLinkCreateRespDTO> create(@RequestBody ShortLinkCreateReqDTO requestParam) {
         return Results.success(shortLinkService.createShortLink(requestParam));
     }
@@ -80,14 +82,14 @@ public class ShortLinkController {
      * Paginate through short links
      */
     @GetMapping("/links")
-    public Result<ShortLinkPageRespDTO> list(ShortLinkPageReqDTO requestParam) {
+    public Result<Page<ShortLinkPageRespDTO>> list(ShortLinkPageReqDTO requestParam) {
         return Results.success(shortLinkService.pageShortLink(requestParam));
     }
 
     /**
      * List short link counts per group
      */
-    @GetMapping("/links/groupcnt")
+    @GetMapping("/links/gcount")
     public Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupCounts(@RequestParam List<String> groupIds) {
         return Results.success(shortLinkService.listGroupShortLinkCount(groupIds));
     }

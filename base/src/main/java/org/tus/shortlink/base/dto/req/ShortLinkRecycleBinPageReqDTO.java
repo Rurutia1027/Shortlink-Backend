@@ -11,4 +11,8 @@ public class ShortLinkRecycleBinPageReqDTO {
      * List of group identifiers
      */
     private List<String> gidList;
+
+    private int pageNum = 1;
+
+    private int pageSize = 20;
 }

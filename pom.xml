@@ -49,6 +49,7 @@
         <!-- Test -->
         <testcontainers.version>1.19.8</testcontainers.version>
         <junit.jupiter.version>5.9.3</junit.jupiter.version>
+        <jsoup.version>1.15.3</jsoup.version>
     </properties>
 
     <!-- =========================
