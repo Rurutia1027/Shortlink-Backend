@@ -48,7 +48,7 @@ public class ShortLinkController {
      * Create a new short link
      */
     @PostMapping("/links/create")
-    // TODO rate-limit later re-design and impl
+    // TODO rate-limit later redesign and impl
     public Result<ShortLinkCreateRespDTO> create(@RequestBody ShortLinkCreateReqDTO requestParam) {
         return Results.success(shortLinkService.createShortLink(requestParam));
     }
