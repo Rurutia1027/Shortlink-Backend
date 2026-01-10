@@ -2,7 +2,8 @@ package org.tus.shortlink.base.common.convention.exception;
 
 import lombok.Getter;
 import org.tus.shortlink.base.common.convention.errorcode.IErrorCode;
-import org.springframework.util.StringUtils;
+import org.tus.shortlink.base.tookit.StringUtils;
+
 import java.util.Optional;
 
 
