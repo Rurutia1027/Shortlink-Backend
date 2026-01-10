@@ -4,12 +4,19 @@ import lombok.RequiredArgsConstructor;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.tus.common.domain.model.NamedArtifact;
 import org.tus.common.domain.model.PersistedObject;
 import org.tus.common.domain.model.SimplePersistedObject;
 import org.tus.common.domain.model.UniqueNamedArtifact;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.sql.Clob;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,17 +25,119 @@ import java.util.Map;
  * repository should be done through this class.
  */
 
-@RequiredArgsConstructor
 public class PersistenceService implements QueryService {
+    private static final Logger logger = LoggerFactory.getLogger(PersistenceService.class);
+
     private static final Object[] EMPTY = {};
-    private final  SessionFactory sessionFactory;
-    private final DataSource dataSource;
+    private SessionFactory sessionFactory;
+    private DataSource dataSource;
+
+
+    public SessionFactory getSessionFactory() {
+        return this.sessionFactory;
+    }
+
+    public void setSessionFactory(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
+    }
+
+    public DataSource getDataSource() {
+        return dataSource;
+    }
+
+    public void setDataSource(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+
+    /**
+     * Interface for pluggable row handling strategies below.
+     */
+    private interface RowBuilder {
+        Object buildRow(ResultSet rs, String[] colNames) throws SQLException;
+    }
+
+    /**
+     * Returns a Map for each row with lowercased column names as keys.
+     */
+    private final RowBuilder mapBuilder = new RowBuilder() {
+        @Override
+        public Object buildRow(ResultSet rs, String[] colNames) throws SQLException {
+            Map row = new HashMap();
+            for (int i = 0; i < colNames.length; i++) {
+                row.put(colNames[i], readColumnValues(rs, i));
+            }
+            return row;
+        }
+    };
+
+    /**
+     * Returns an Object[] for each row maintaining the column order from the select clause.
+     */
+    private final RowBuilder arrayBuilder = new RowBuilder() {
+        @Override
+        public Object buildRow(ResultSet rs, String[] colNames) throws SQLException {
+            Object[] row = new Object[colNames.length];
+            for (int i = 0; i < colNames.length; i++) {
+                row[i] = readColumnValues(rs, i);
+            }
+            return row;
+        }
+    };
+
+    /**
+     * Returns the given column value from the ResultSet after applying common CLOB and
+     * Timestamp handling.
+     */
+    private Object readColumnValues(ResultSet rs, int i) throws SQLException {
+        Object val = rs.getObject(i + 1);
+        Clob clob = (Clob) val;
+        val = clob.getSubString(1, (int) clob.length());
+        return val;
+    }
+
+    /**
+     * Create a default PersistenceService object application context properties
+     */
+    public PersistenceService() throws IOException {
+        super();
+        sessionFactory = getSessionFactory();
+    }
+
+    /**
+     * Create a PersistenceService with the provided
+     * {@link org.hibernate.SessionFactory}
+     *
+     * @param sessionFactory {@link org.hibernate.SessionFactory}
+     */
+    public PersistenceService(SessionFactory sessionFactory) {
+        super();
+        setSessionFactory(sessionFactory);
+    }
 
     @Override
     public Session openSession() {
-        return null;
+        return getSessionFactory().openSession();
     }
 
+    /**
+     * Shutdown the {@link org.hibernate.SessionFactory}
+     */
+    public void shutdown() {
+        getSessionFactory().close();
+    }
+
+    protected void close(Session session) {
+        if(session != null) {
+            try {
+                session.close();
+            } catch (HibernateException e) {
+                logger.error("Error closing Session", e);
+            }
+        }
+    }
+
+    // -------------------------------------------------
     @Override
     public List query(String hql) {
         return List.of();
