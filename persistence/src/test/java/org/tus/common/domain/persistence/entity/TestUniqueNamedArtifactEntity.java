@@ -5,7 +5,7 @@ import jakarta.persistence.Table;
 import org.tus.common.domain.persistence.UniqueNamedArtifact;
 
 @Entity
-@Table(name = "test_sub_unique_name_artifact_entity")
-public class TestSubUniqueNamedArtifactEntity extends UniqueNamedArtifact {
+@Table(name = "test_unique_name_artifact_entity")
+public class TestUniqueNamedArtifactEntity extends UniqueNamedArtifact {
     // optional additional fields
 }
