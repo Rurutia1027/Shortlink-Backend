@@ -2,6 +2,9 @@ package org.tus.common.domain.persistence;
 
 import jakarta.persistence.metamodel.EntityType;
 import jakarta.persistence.metamodel.Metamodel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.logging.log4j.util.Strings;
 import org.hibernate.HibernateException;
 import org.hibernate.JDBCException;
@@ -41,30 +44,15 @@ import java.util.stream.Collectors;
  * repository should be done through this class.
  */
 
+@AllArgsConstructor
+@Setter
+@Getter
 public class PersistenceService implements QueryService {
     private static final Logger logger = LoggerFactory.getLogger(PersistenceService.class);
 
     private static final Object[] EMPTY = {};
     private SessionFactory sessionFactory;
     private DataSource dataSource;
-
-
-    public SessionFactory getSessionFactory() {
-        return this.sessionFactory;
-    }
-
-    public void setSessionFactory(SessionFactory sessionFactory) {
-        this.sessionFactory = sessionFactory;
-    }
-
-    public DataSource getDataSource() {
-        return dataSource;
-    }
-
-    public void setDataSource(DataSource dataSource) {
-        this.dataSource = dataSource;
-    }
-
 
     /**
      * Interface for pluggable row handling strategies below.
@@ -133,14 +121,14 @@ public class PersistenceService implements QueryService {
 
     @Override
     public Session openSession() {
-        return getSessionFactory().openSession();
+        return sessionFactory.openSession();
     }
 
     /**
      * Shutdown the {@link org.hibernate.SessionFactory}
      */
     public void shutdown() {
-        getSessionFactory().close();
+        sessionFactory.close();
     }
 
     protected void close(Session session) {
@@ -594,7 +582,7 @@ public class PersistenceService implements QueryService {
         }
 
         // ---- Step 3: execute query  ----
-        Session session = sessionFactory.getCurrentSession();
+        Session session = openSession();
         Query<T> query = session.createQuery(hql.toString(), clazz);
         query.setParameter("name", name);
 
@@ -647,7 +635,7 @@ public class PersistenceService implements QueryService {
         }
 
         // ---- Step 3: execute query ----
-        Session session = sessionFactory.getCurrentSession();
+        Session session = openSession();
         Query<T> query = session.createQuery(hql.toString(), clazz);
         query.setParameter("id", id);
 
@@ -704,7 +692,7 @@ public class PersistenceService implements QueryService {
         }
 
         // ---- Step 3: execute query  ----
-        Session session = sessionFactory.getCurrentSession();
+        Session session = openSession();
         Query<T> query = session.createQuery(hql.toString(), clazz);
         query.setParameter("idName", idName);
 
@@ -775,7 +763,7 @@ public class PersistenceService implements QueryService {
         }
 
         // ---- Step 3: execute query ----
-        Session session = sessionFactory.getCurrentSession();
+        Session session = openSession();
         Query<T> query = session.createQuery(hql.toString(), clazz);
         paramBindings.forEach(query::setParameter);
 

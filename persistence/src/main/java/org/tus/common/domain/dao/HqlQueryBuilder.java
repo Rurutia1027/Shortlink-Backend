@@ -6,6 +6,4 @@ package org.tus.common.domain.dao;
  * Examples can be found in the associated test classes.
  */
 public class HqlQueryBuilder {
-
-
 }
