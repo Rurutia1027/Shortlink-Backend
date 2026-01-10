@@ -1,4 +1,4 @@
-package org.tus.common.domain.persistence;
+package org.tus.common.domain.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
@@ -8,7 +8,6 @@ import jakarta.persistence.TemporalType;
 import jakarta.persistence.Transient;
 import jakarta.persistence.Version;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.tus.common.domain.model.EntityTag;
 import org.tus.shortlink.base.tookit.CodecUtils;
 
 import java.util.Date;

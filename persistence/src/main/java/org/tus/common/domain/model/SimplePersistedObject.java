@@ -1,4 +1,4 @@
-package org.tus.common.domain.persistence;
+package org.tus.common.domain.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
