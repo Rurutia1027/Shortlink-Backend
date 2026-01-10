@@ -1,4 +1,4 @@
-package org.tus.common.domain.model;
+package org.tus.common.domain.persistence;
 
 import jakarta.persistence.MappedSuperclass;
 

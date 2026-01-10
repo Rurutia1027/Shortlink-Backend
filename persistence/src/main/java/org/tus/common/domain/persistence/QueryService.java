@@ -2,10 +2,6 @@ package org.tus.common.domain.persistence;
 
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
-import org.tus.common.domain.model.NamedArtifact;
-import org.tus.common.domain.model.PersistedObject;
-import org.tus.common.domain.model.SimplePersistedObject;
-import org.tus.common.domain.model.UniqueNamedArtifact;
 
 import java.util.List;
 import java.util.Map;
@@ -102,7 +98,7 @@ public interface QueryService {
      * @param <T>  the type of {@code item}
      * @return the saved object
      */
-    <T extends SimplePersistedObject> T save(T item);
+    <T extends SimplePersistedObject> T save(T item) throws HibernateException;
 
     /**
      * Insert the object
@@ -299,7 +295,7 @@ public interface QueryService {
      */
     Object querySingle(String hql, Map<String, Object> namedParameters);
 
-    String queryByJdbc(String hql, Map<Integer, String> namedParameters, int i);
+    String queryByJdbc(String sql, Map<Integer, String> namedParameters, int i);
 
     /**
      * Executes an INSERT, UPDATE, or DELETE statement
