@@ -3,10 +3,38 @@ package org.tus.shortlink.base.tookit;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.nio.charset.Charset;
+import java.util.regex.Pattern;
 
 public class StringUtils {
     public static final String UTF8 = "UTF-8";
     public static final Charset UTF8_CHARSET = Charset.forName(UTF8);
+
+
+    /**
+     * Define which characters are invalid for name.
+     * Invalid characters: ; / ? : @ = & " < > # % { } | \ ' ^ ~ [ ] ` <blank>
+     */
+    private static final Pattern INVALID_NAME_PATTERN = Pattern.compile(".*[;/?:@=&\\\"<>#%{}|\\\\'^~\\[\\]`\\s\u0000].*");
+    /**
+     * Define which characters are invalid for displayName.
+     * Invalid characters: ; / ? : @ = & " < > # % { } | \ ' ^ ~ [ ] ` <blank>
+     */
+    private static final Pattern INVALID_DISPLAY_NAME_PATTERN = Pattern.compile(".*[;/?:@=&\\\"<>#%{}|\\\\'^~\\[\\]`\u0000].*");
+
+    /**
+     * Define which characters are invalid for name
+     * Compare to INVALID_IDM_NAME_PATTERN:
+     *   @ ' is allowed as we use email as username in some case
+     */
+    private static final Pattern INVALID_USER_NAME_PATTERN = Pattern.compile(".*[;/?:=&\\\"<>#%{}|\\^~\\[\\]`\\s\u0000].*");
+
+    /**
+     * Define which characters are invalid for name
+     * Compare to INVALID_USER_NAME_PATTERN:
+     *   space : is allowed
+     */
+    private static final Pattern INVALID_USER_DISPLAY_NAME_PATTERN = Pattern.compile(".*[;/?=&\\\"<>#%{}|\\^~\\[\\]`\u0000].*");
+
 
 
     /**
@@ -109,5 +137,21 @@ public class StringUtils {
      */
     public static String digest(String input) {
         return CodecUtils.encodeBase64URLSafeString(DigestUtils.sha1(input.getBytes(UTF8_CHARSET)));
+    }
+
+    public static boolean isNameValid(String name) {
+        return !INVALID_NAME_PATTERN.matcher(name).matches();
+    }
+
+    public static boolean isDisplayNameValid(String name) {
+        return !INVALID_DISPLAY_NAME_PATTERN.matcher(name).matches();
+    }
+
+    public static boolean isValidUserName(String username) {
+        return !INVALID_USER_NAME_PATTERN.matcher(username).matches();
+    }
+
+    public static boolean isValidUserDisplayName(String username) {
+        return !INVALID_USER_DISPLAY_NAME_PATTERN.matcher(username).matches();
     }
 }
