@@ -24,6 +24,7 @@
         <module>shortlink</module>
         <module>identity</module>
         <module>clients</module>
+        <module>api-test</module>
     </modules>
 
     <!-- =========================
