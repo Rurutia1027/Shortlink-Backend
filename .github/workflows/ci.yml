@@ -67,18 +67,17 @@ jobs:
         run: |
           bash bin/port-forward.sh
 
-      - name: Build Project
-        run: |
-          mvn clean package
-
       - name: Verify Project
         run: |
-          mvn clean verify 
+          mvn clean verify -DskipTest
 
       - name: Shutdown Kind Cluster
         if: always()
         run: |
           bash bin/k8s-down.sh
+      - name: Run Project Integration Test
+        run: |
+          mvn clean verify 
 
 #      - name: Docker Login
 #        uses: docker/login-action@v2
