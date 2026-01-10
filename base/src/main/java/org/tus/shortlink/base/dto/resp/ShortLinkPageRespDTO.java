@@ -1,11 +1,13 @@
 package org.tus.shortlink.base.dto.resp;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.Builder;
 import lombok.Data;
 
 import java.util.Date;
 
 @Data
+@Builder
 public class ShortLinkPageRespDTO {
 
     /**

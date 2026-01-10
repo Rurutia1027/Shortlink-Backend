@@ -22,7 +22,6 @@ import org.tus.shortlink.base.dto.resp.ShortLinkBatchCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
-import org.tus.shortlink.svc.entity.ShortLink;
 import org.tus.shortlink.svc.service.ShortLinkService;
 
 import java.io.IOException;
