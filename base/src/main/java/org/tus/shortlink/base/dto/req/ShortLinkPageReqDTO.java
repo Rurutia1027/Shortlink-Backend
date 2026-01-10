@@ -1,8 +1,10 @@
 package org.tus.shortlink.base.dto.req;
 
+import lombok.Builder;
 import lombok.Data;
 
 @Data
+@Builder
 public class ShortLinkPageReqDTO {
 
     /**

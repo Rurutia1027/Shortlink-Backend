@@ -17,7 +17,7 @@ import java.util.List;
 
 public interface ShortLinkService {
     void restoreUrl(String shortUrl, HttpServletRequest httpRequest,
-                    HttpServletResponse httpResponse) throws IOException;
+                    HttpServletResponse httpResponse);
 
     ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam);
 
