@@ -6,25 +6,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.persistence.QueryService;
-import org.tus.common.domain.persistence.config.PersistenceTestContainerConfig;
-import org.tus.common.domain.persistence.entity.TestPersistedEntity;
+import org.tus.common.domain.persistence.integration.config.PersistenceTestContainerDBConfig;
+import org.tus.common.domain.persistence.integration.entity.TestPersistedEntity;
 import org.tus.shortlink.base.tookit.StringUtils;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringJUnitConfig(classes = PersistenceTestContainerConfig.class)
+@SpringJUnitConfig(classes = PersistenceTestContainerDBConfig.class)
 @Transactional
 public class QueryServiceHqlBuilderIT {
     @Autowired
     private QueryService queryService;
-
-    private Long orgId;
-    private Long groupId;
     private String entityName = String.format("TestPersistedEntity-" + UUID.randomUUID());
 
     @BeforeEach
