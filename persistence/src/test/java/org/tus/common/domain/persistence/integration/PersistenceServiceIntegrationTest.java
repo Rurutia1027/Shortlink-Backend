@@ -13,6 +13,15 @@ import org.tus.common.domain.persistence.entity.TestPersistedEntity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+/**
+ * Since we care more about the integration usage of {@link PersistenceService} and
+ * {@link org.tus.common.domain.dao.HqlQueryBuilder}
+ *
+ * So, this integration test cases gonna be deprecated and delete soon, to avoid setup two
+ * test containers of postgres cause conflict result in test result error and resource
+ * consuming issues in ci pipeline.
+ */
+@Deprecated
 @Ignore
 @SpringJUnitConfig(classes = org.tus.common.domain.persistence.config.PersistenceConfig.class)
 @Transactional
