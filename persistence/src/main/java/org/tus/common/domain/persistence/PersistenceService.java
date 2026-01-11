@@ -1100,4 +1100,49 @@ public class PersistenceService implements QueryService {
             }
         }
     }
+
+        @Override
+    public <T> void deleteAll(List<T> objects) {
+        Session session = null;
+        Transaction txn = null;
+        try {
+            session = openSession();
+            txn = session.beginTransaction();
+            for (Object object : objects) {
+                session.delete(object);
+            }
+            txn.commit();
+        } catch (HibernateException e) {
+            logger.error("Hibernate exception executing deleteAll", e);
+            rollback(txn);
+            throw e;
+        } finally {
+            close(session);
+        }
+    }
+
+    @Override
+    public int delete(String hql, Object... params) {
+        Session session = null;
+        Transaction txn = null;
+        try {
+            session = openSession();
+            txn = session.beginTransaction();
+            Query query = session.createQuery(hql);
+            for (int j = 0; j < params.length; j++) {
+                // Must use setParameter(String, Object) instead of setParameter(int, Object)
+                query.setParameter(String.valueOf(j + 1), params[j]);
+            }
+            int rows = query.executeUpdate();
+            txn.commit();
+            return rows;
+
+        } catch (HibernateException e) {
+            logger.error("Hibernate exception executing delete '" + hql + "'", e);
+            rollback(txn);
+            throw e;
+        } finally {
+            close(session);
+        }
+    }
 }

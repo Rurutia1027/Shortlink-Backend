@@ -123,6 +123,23 @@ public interface QueryService {
      */
     <T> T delete(T item) throws HibernateException;
 
+    /**
+     * Delete the objects returned from the query from the database.
+     *
+     * @param hql    The query that finds objects to delete.
+     * @param params The replacement parameter values.
+     * @return The number of objects deleted.
+     */
+    int delete(String hql, Object... params);
+
+    /**
+     * Delete all of the objects in the list from the database.
+     *
+     * @param objects The list of objects to delete.
+     */
+    <T> void deleteAll(List<T> objects);
+
+
 
     /**
      * Inserts the objects if they are new, otherwise udpates the objects.
