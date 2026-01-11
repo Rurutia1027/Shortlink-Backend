@@ -1,5 +1,7 @@
 package org.tus.common.domain.dao;
 
+import org.tus.shortlink.base.tookit.StringUtils;
+
 /**
  * Internal container for the Join operations of an HQL query.
  */
