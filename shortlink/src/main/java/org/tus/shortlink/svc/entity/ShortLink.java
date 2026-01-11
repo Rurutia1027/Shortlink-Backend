@@ -8,9 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.tus.shortlink.base.common.database.BaseEntity;
+import org.tus.common.domain.persistence.UniqueNamedArtifact;
 
-import java.time.Instant;
 import java.util.Date;
 
 /**
@@ -24,7 +23,7 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ShortLink extends BaseEntity {
+public class ShortLink extends UniqueNamedArtifact {
 
     @Column(nullable = false, length = 128)
     private String domain;
