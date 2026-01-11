@@ -1,9 +1,7 @@
 package org.tus.shortlink.svc.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,9 +13,6 @@ import org.tus.shortlink.base.common.convention.result.Results;
 import org.tus.shortlink.base.dto.req.RecycleBinRecoverReqDTO;
 import org.tus.shortlink.base.dto.req.RecycleBinRemoveReqDTO;
 import org.tus.shortlink.base.dto.req.RecycleBinSaveReqDTO;
-import org.tus.shortlink.base.dto.req.ShortLinkPageReqDTO;
-import org.tus.shortlink.base.dto.req.ShortLinkRecycleBinPageReqDTO;
-import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
 import org.tus.shortlink.svc.service.RecycleBinService;
 
 @RestController
@@ -36,13 +31,13 @@ public class TrashController {
         return Results.success();
     }
 
-    /**
-     * LIST short links in trash with pagination
-     */
-    @GetMapping("/list")
-    public Result<Page<ShortLinkPageRespDTO>> list(ShortLinkRecycleBinPageReqDTO requestParam) {
-        return Results.success(recycleBinService.pageShortLink(requestParam));
-    }
+//    /**
+//     * LIST short links in trash with pagination
+//     */
+//    @GetMapping("/list")
+//    public Result<Page<ShortLinkPageRespDTO>> list(ShortLinkRecycleBinPageReqDTO requestParam) {
+//        return Results.success(recycleBinService.pageShortLink(requestParam));
+//    }
 
     /**
      * RECOVER a short link from trash

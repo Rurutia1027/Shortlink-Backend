@@ -1,4 +1,4 @@
-package org.tus.shortlink.svc.service.impl;
+package org.tus.shortlink.svc.integration;
 
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;

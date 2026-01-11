@@ -2,11 +2,9 @@ package org.tus.common.domain.persistence.integration;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
-import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.persistence.QueryService;
 import org.tus.common.domain.persistence.integration.config.PersistenceTestContainerDBConfig;
@@ -16,11 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
 @SpringJUnitConfig(classes = PersistenceTestContainerDBConfig.class)
-@Transactional
 public class QueryServiceHqlBuilderExtendedIT {
 
     @Autowired

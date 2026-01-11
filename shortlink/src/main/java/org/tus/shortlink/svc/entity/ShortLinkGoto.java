@@ -1,11 +1,13 @@
 package org.tus.shortlink.svc.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.tus.shortlink.base.common.database.BaseEntity;
+import org.tus.common.domain.persistence.UniqueNamedArtifact;
 
 /**
  * Entity representing a short link redirection record
@@ -16,15 +18,7 @@ import org.tus.shortlink.base.common.database.BaseEntity;
 @AllArgsConstructor
 @Entity
 @Table(name = "t_link_goto")
-public class ShortLinkGoto extends BaseEntity {
-
-    /**
-     * Primary key ID
-     */
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
+public class ShortLinkGoto extends UniqueNamedArtifact {
     /**
      * Group identifier
      */
