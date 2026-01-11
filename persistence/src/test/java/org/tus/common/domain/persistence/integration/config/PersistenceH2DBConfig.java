@@ -1,14 +1,13 @@
-package org.tus.common.domain.persistence.config;
+package org.tus.common.domain.persistence.integration.config;
 
 import org.hibernate.SessionFactory;
+import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.hibernate5.HibernateTransactionManager;
 import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.tus.common.domain.persistence.PersistenceService;
 
 import javax.sql.DataSource;
@@ -16,24 +15,16 @@ import java.util.Properties;
 
 @Configuration
 @EnableTransactionManagement
-public class PersistenceTestContainerConfig {
-
-    @Bean(initMethod = "start", destroyMethod = "stop")
-    public PostgreSQLContainer<?> postgreSQLContainer() {
-        return new PostgreSQLContainer<>("postgres:15.3")
-                .withDatabaseName("testdb")
-                .withUsername("test")
-                .withPassword("test");
-    }
+public class PersistenceH2DBConfig {
 
     @Bean
-    public DataSource dataSource(PostgreSQLContainer<?> container) {
-        DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setDriverClassName(container.getDriverClassName());
-        ds.setUrl(container.getJdbcUrl());
-        ds.setUsername(container.getUsername());
-        ds.setPassword(container.getPassword());
-        return ds;
+    public DataSource dataSource() {
+        return DataSourceBuilder.create()
+                .driverClassName("org.h2.Driver")
+                .url("jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1")
+                .username("sa")
+                .password("")
+                .build();
     }
 
     @Bean
@@ -42,8 +33,8 @@ public class PersistenceTestContainerConfig {
         sessionFactory.setDataSource(dataSource);
         sessionFactory.setPackagesToScan("org.tus.common.domain.persistence.entity");
         Properties props = new Properties();
-        props.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
-        props.put("hibernate.hbm2ddl.auto", "update");
+        props.put("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
+        props.put("hibernate.hbm2ddl.auto", "create-drop");
         sessionFactory.setHibernateProperties(props);
         return sessionFactory;
     }

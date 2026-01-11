@@ -1,4 +1,4 @@
-package org.tus.common.domain.exception;
+package org.tus.common.domain.dao.exception;
 
 /**
  * Exception indicating an issue when calling the build function of HqlQueryBuilder
