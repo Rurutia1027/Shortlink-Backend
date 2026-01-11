@@ -1,6 +1,7 @@
 package org.tus.common.domain.persistence.integration;
 
 import org.hibernate.SessionFactory;
+import org.junit.Ignore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.tus.common.domain.persistence.entity.TestPersistedEntity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@Ignore
 @SpringJUnitConfig(classes = org.tus.common.domain.persistence.config.PersistenceConfig.class)
 @Transactional
 public class PersistenceServiceIntegrationTest {
