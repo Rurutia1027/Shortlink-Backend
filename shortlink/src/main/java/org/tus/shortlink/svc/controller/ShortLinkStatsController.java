@@ -4,10 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.tus.common.domain.model.PageResponse;
 import org.tus.shortlink.base.common.convention.result.Result;
 import org.tus.shortlink.base.common.convention.result.Results;
+import org.tus.shortlink.base.dto.req.ShortLinkGroupStatsAccessRecordReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkGroupStatsReqDTO;
+import org.tus.shortlink.base.dto.req.ShortLinkStatsAccessRecordReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkStatsReqDTO;
+import org.tus.shortlink.base.dto.resp.ShortLinkStatsAccessRecordRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsRespDTO;
 import org.tus.shortlink.svc.service.ShortLinkStatsService;
 
@@ -35,21 +39,21 @@ public class ShortLinkStatsController {
         return Results.success(shortLinkStatesService.groupShortLinkStats(requestParam));
     }
 
-//    /**
-//     * Access records for a single short link
-//     */
-//    @GetMapping("/access")
-//    public Result<Page<ShortLinkStatsAccessRecordRespDTO>> shortLinkStatsAccessRecord(
-//            ShortLinkStatsAccessRecordReqDTO requestParam) {
-//        return Results.success(shortLinkStatesService.shortLinkStatsAccessRecord(requestParam));
-//    }
-//
-//    /**
-//     * Access records for a group of short links
-//     */
-//    @GetMapping("/group/access")
-//    public Result<Page<ShortLinkStatsAccessRecordRespDTO>> groupShortLinkStatsAccessRecord(
-//            ShortLinkGroupStatsAccessRecordReqDTO requestParam) {
-//        return Results.success(shortLinkStatesService.groupShortLinkStatsAccessRecord(requestParam));
-//    }
+    /**
+     * Access records for a single short link
+     */
+    @GetMapping("/access")
+    public Result<PageResponse<ShortLinkStatsAccessRecordRespDTO>> shortLinkStatsAccessRecord(
+            ShortLinkStatsAccessRecordReqDTO requestParam) {
+        return Results.success(shortLinkStatesService.shortLinkStatsAccessRecord(requestParam));
+    }
+
+    /**
+     * Access records for a group of short links
+     */
+    @GetMapping("/group/access")
+    public Result<PageResponse<ShortLinkStatsAccessRecordRespDTO>> groupShortLinkStatsAccessRecord(
+            ShortLinkGroupStatsAccessRecordReqDTO requestParam) {
+        return Results.success(shortLinkStatesService.groupShortLinkStatsAccessRecord(requestParam));
+    }
 }

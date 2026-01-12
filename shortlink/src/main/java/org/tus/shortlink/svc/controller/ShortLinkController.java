@@ -11,14 +11,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.tus.common.domain.model.PageResponse;
 import org.tus.shortlink.base.common.convention.result.Result;
 import org.tus.shortlink.base.common.convention.result.Results;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkCreateReqDTO;
+import org.tus.shortlink.base.dto.req.ShortLinkPageReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkUpdateReqDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkBatchCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
+import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
 import org.tus.shortlink.svc.service.ShortLinkService;
 
 import java.io.IOException;
@@ -74,13 +77,13 @@ public class ShortLinkController {
         return Results.success();
     }
 
-//    /**
-//     * Paginate through short links
-//     */
-//    @GetMapping("/links")
-//    public Result<Page<ShortLinkPageRespDTO>> list(ShortLinkPageReqDTO requestParam) {
-//        return Results.success(shortLinkService.pageShortLink(requestParam));
-//    }
+    /**
+     * Paginate through short links
+     */
+    @GetMapping("/links")
+    public Result<PageResponse<ShortLinkPageRespDTO>> list(ShortLinkPageReqDTO requestParam) {
+        return Results.success(shortLinkService.pageShortLink(requestParam));
+    }
 
     /**
      * List short link counts per group
