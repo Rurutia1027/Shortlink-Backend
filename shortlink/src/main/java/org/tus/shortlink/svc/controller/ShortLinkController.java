@@ -80,8 +80,8 @@ public class ShortLinkController {
     /**
      * Paginate through short links
      */
-    @GetMapping("/links")
-    public Result<PageResponse<ShortLinkPageRespDTO>> list(ShortLinkPageReqDTO requestParam) {
+    @PostMapping("/links/page")
+    public Result<PageResponse<ShortLinkPageRespDTO>> list( @RequestBody ShortLinkPageReqDTO requestParam) {
         return Results.success(shortLinkService.pageShortLink(requestParam));
     }
 

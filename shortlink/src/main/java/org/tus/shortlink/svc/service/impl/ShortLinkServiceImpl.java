@@ -301,7 +301,65 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     @Override
     public PageResponse<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam) {
-        return null;
+        if (requestParam == null) {
+            return emptyPage(requestParam);
+        }
+
+        int pageNo = requestParam.getPageNo() != null ? requestParam.getPageNo() : 1;
+        int pageSize = requestParam.getPageSize() != null ? requestParam.getPageSize() : 10;
+        int start = (pageNo - 1) * pageSize;
+
+        HqlQueryBuilder builder = new HqlQueryBuilder();
+
+        // --- base query (filters only) ---
+        builder.fromAs(ShortLink.class, "sl")
+                .open()
+                .eq("sl.gid", requestParam.getGid())
+                .close()
+                .and()
+                .isNull("sl.deleted");
+
+        // --- count query ---
+        builder.selectCount();
+        String countHql = builder.build();
+        Map<String, Object> countParams = builder.getInjectionParameters();
+
+        Long total = (Long) queryService.query(countHql, countParams).get(0);
+
+        if (total == 0L) {
+            return emptyPage(requestParam);
+        }
+
+        // --- data query ---
+        builder.select("sl");
+
+        // ordering
+        applyOrder(requestParam.getOrderTag(), builder);
+
+        String hql = builder.build();
+        Map<String, Object> hqlParams = builder.getInjectionParameters();
+        builder.clear();
+
+        List<ShortLink> records = queryService.pagedQuery(
+                hql,
+                hqlParams,
+                start,
+                pageSize
+        );
+
+
+        // --- mapping ---
+        List<ShortLinkPageRespDTO> elements = records.stream()
+                .map(this::toPageResp)
+                .toList();
+
+        // --- response ---
+        PageResponse<ShortLinkPageRespDTO> response = new PageResponse<>();
+        response.setStart(start);
+        response.setPageSize(pageSize);
+        response.setTotal(total.intValue());
+        response.setElements(elements);
+        return response;
     }
 
 
@@ -367,5 +425,43 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             }
         }
         return null;
+    }
+
+
+    // === private methods ===
+    private PageResponse<ShortLinkPageRespDTO> emptyPage(ShortLinkPageReqDTO req) {
+        PageResponse<ShortLinkPageRespDTO> resp = new PageResponse<>();
+        resp.setStart(0);
+        resp.setPageSize(req != null ? req.getPageSize() : 10);
+        resp.setTotal(0);
+        resp.setElements(List.of());
+        return resp;
+    }
+
+    // Entity -> DTO
+    private ShortLinkPageRespDTO toPageResp(ShortLink sl) {
+        return ShortLinkPageRespDTO.builder()
+                .id(sl.getId())
+                .domain(sl.getDomain())
+                .shortUri(sl.getShortUri())
+                .fullShortUrl(sl.getFullShortUrl())
+                .originUrl(sl.getOriginUrl())
+                .gid(sl.getGid())
+                .validDateType(sl.getValidDateType())
+                .enableStatus(sl.getEnableStatus())
+                .validDate(sl.getValidDate())
+                .createTime(sl.getCreatedDate())
+                .describe(sl.getDescription())
+                .favicon(sl.getFavicon())
+                .build();
+    }
+
+    private void applyOrder(String orderTag, HqlQueryBuilder builder) {
+        if ("created_time_asc".equals(orderTag)) {
+            builder.orderBy("sl.createdDate", true);
+        } else {
+            // default: newest first
+            builder.orderBy("sl.createdDate", false);
+        }
     }
 }

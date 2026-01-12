@@ -3,6 +3,7 @@ package org.tus.shortlink.svc.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.tus.common.domain.model.PageResponse;
+import org.tus.common.domain.persistence.QueryService;
 import org.tus.shortlink.base.dto.req.RecycleBinRecoverReqDTO;
 import org.tus.shortlink.base.dto.req.RecycleBinRemoveReqDTO;
 import org.tus.shortlink.base.dto.req.RecycleBinSaveReqDTO;
@@ -15,8 +16,8 @@ import org.tus.shortlink.svc.service.RecycleBinService;
 @Service
 @RequiredArgsConstructor
 public class RecycleBinServiceImpl implements RecycleBinService {
+    private final QueryService queryService;
     @Override
-
     public void saveRecycle(RecycleBinSaveReqDTO requestParam) {
         // TODO: pending on the persistent module
     }
