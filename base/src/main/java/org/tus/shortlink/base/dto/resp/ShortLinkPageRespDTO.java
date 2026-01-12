@@ -13,7 +13,7 @@ public class ShortLinkPageRespDTO {
     /**
      * ID
      */
-    private Long id;
+    private String id;
 
     /**
      * Domain

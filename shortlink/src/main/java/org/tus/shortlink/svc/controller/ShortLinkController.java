@@ -80,8 +80,8 @@ public class ShortLinkController {
     /**
      * Paginate through short links
      */
-    @GetMapping("/links")
-    public Result<PageResponse<ShortLinkPageRespDTO>> list(ShortLinkPageReqDTO requestParam) {
+    @PostMapping("/links/page")
+    public Result<PageResponse<ShortLinkPageRespDTO>> list( @RequestBody ShortLinkPageReqDTO requestParam) {
         return Results.success(shortLinkService.pageShortLink(requestParam));
     }
 
@@ -89,7 +89,7 @@ public class ShortLinkController {
      * List short link counts per group
      */
     @GetMapping("/links/gcount")
-    public Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupCounts(@RequestParam List<String> groupIds) {
+    public Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupCounts( @RequestParam(name = "groupIds", required = false) List<String> groupIds) {
         return Results.success(shortLinkService.listGroupShortLinkCount(groupIds));
     }
 }
