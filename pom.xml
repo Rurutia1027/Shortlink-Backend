@@ -26,7 +26,6 @@
         <module>clients</module>
         <module>redis</module>
         <module>persistence</module>
-        <module>api-test</module>
     </modules>
 
     <!-- =========================
