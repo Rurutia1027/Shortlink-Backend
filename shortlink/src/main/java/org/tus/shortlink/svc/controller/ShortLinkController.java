@@ -89,7 +89,7 @@ public class ShortLinkController {
      * List short link counts per group
      */
     @GetMapping("/links/gcount")
-    public Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupCounts(@RequestParam List<String> groupIds) {
+    public Result<List<ShortLinkGroupCountQueryRespDTO>> listGroupCounts( @RequestParam(name = "groupIds", required = false) List<String> groupIds) {
         return Results.success(shortLinkService.listGroupShortLinkCount(groupIds));
     }
 }

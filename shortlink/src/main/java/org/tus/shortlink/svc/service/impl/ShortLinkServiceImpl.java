@@ -84,6 +84,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .shortUri(shortLinkSuffix)
                 .enableStatus(0)
                 .delTime(0L)
+                .gid(requestParam.getGid())
                 .fullShortUrl(fullShortUrl)
                 .favicon(getFavicon(requestParam.getOriginUrl()))
                 .build();
@@ -375,19 +376,26 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             return Collections.emptyList();
         }
 
-        List<ShortLinkGroupCountQueryRespDTO> result = new ArrayList<>();
+        HqlQueryBuilder hqlQueryBuilder = new HqlQueryBuilder();
+        hqlQueryBuilder
+                .fromAs(ShortLink.class, "sl")
+                .open()
+                .in("sl.gid", gidList)
+                .close()
+                .and()
+                .isNull("sl.deleted")
+                .select("sl.gid, count(sl)")
+                .groupBy("sl.gid");
 
-        for (String gid : gidList) {
-            ShortLinkGroupCountQueryRespDTO dto =
-                    ShortLinkGroupCountQueryRespDTO.builder()
-                            .gid(gid)
-                            .build();
-            // mock count, e.g., random between 1 and 100
-            dto.setShortLinkCount((int) (Math.random() * 100) + 1);
-            result.add(dto);
-        }
+        String hql = hqlQueryBuilder.build();
+        Map<String, Object> params = hqlQueryBuilder.getInjectionParameters();
+        List<Object[]> results = queryService.query(hql, params);
 
-        return result;
+        return results.stream()
+                .map(row -> ShortLinkGroupCountQueryRespDTO.builder()
+                        .gid((String) row[0])
+                        .shortLinkCount(((Long) row[1]).intValue()).build())
+                .toList();
     }
 
 
