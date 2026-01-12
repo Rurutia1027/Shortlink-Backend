@@ -35,6 +35,8 @@ public class StringUtils {
      */
     private static final Pattern INVALID_USER_DISPLAY_NAME_PATTERN = Pattern.compile(".*[;/?=&\\\"<>#%{}|\\^~\\[\\]`\u0000].*");
 
+    public static final String UTC_DATE_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
+
 
 
     /**

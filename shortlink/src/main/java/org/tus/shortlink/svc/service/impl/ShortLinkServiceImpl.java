@@ -1,20 +1,22 @@
-package org.tus.shortlink.svc.integration;
+package org.tus.shortlink.svc.service.impl;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkCreateReqDTO;
+import org.tus.shortlink.base.dto.req.ShortLinkPageReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkUpdateReqDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkBaseInfoRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkBatchCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
+import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
 import org.tus.shortlink.svc.service.ShortLinkService;
 
 import java.util.ArrayList;
@@ -167,48 +169,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         // TODO
     }
 
-//    @Override
-//    public Page<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam) {
-//        if (requestParam == null || requestParam.getPageNo() <= 0 || requestParam.getPageSize() <= 0) {
-//            return Page.empty();
-//        }
-//
-//        int pageNo = requestParam.getPageNo() - 1;
-//        int pageSize = requestParam.getPageSize();
-//
-//        // Mock total 50 items
-//        List<ShortLinkPageRespDTO> allItems = new ArrayList<>();
-//        for (long i = 1; i <= 50; i++) {
-//            ShortLinkPageRespDTO dto = ShortLinkPageRespDTO.builder()
-//                    .id(i)
-//                    .gid(requestParam.getGid())
-//                    .domain("http://example.com")
-//                    .shortUri("short" + i)
-//                    .fullShortUrl("http://example.com/s/" + i)
-//                    .originUrl("http://original.com/page" + i)
-//                    .validDateType(0)
-//                    .enableStatus(0)
-//                    .validDate(new Date())
-//                    .createTime(new Date())
-//                    .describe("Mock description " + i)
-//                    .favicon("http://example.com/favicon.ico")
-//                    .totalPv((int) (Math.random() * 1000))
-//                    .todayPv((int) (Math.random() * 100))
-//                    .totalUv((int) (Math.random() * 500))
-//                    .todayUv((int) (Math.random() * 50))
-//                    .totalUip((int) (Math.random() * 300))
-//                    .todayUip((int) (Math.random() * 30))
-//                    .build();
-//            allItems.add(dto);
-//        }
-//
-//        // Slice for pagination
-//        int start = Math.min(pageNo * pageSize, allItems.size());
-//        int end = Math.min(start + pageSize, allItems.size());
-//        List<ShortLinkPageRespDTO> pageContent = allItems.subList(start, end);
-//
-//        return new PageImpl<>(pageContent, PageRequest.of(pageNo, pageSize), allItems.size());
-//    }
+    @Override
+    public PageResponse<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam) {
+        return null;
+    }
+
 
     /**
      * List the number of active short links per group.
