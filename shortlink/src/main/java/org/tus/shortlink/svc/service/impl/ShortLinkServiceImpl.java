@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
@@ -27,6 +28,7 @@ import org.tus.shortlink.base.dto.resp.ShortLinkCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
 import org.tus.shortlink.base.tookit.HashUtil;
+import org.tus.shortlink.base.tookit.StringUtils;
 import org.tus.shortlink.svc.entity.ShortLink;
 import org.tus.shortlink.svc.entity.ShortLinkGoto;
 import org.tus.shortlink.svc.service.ShortLinkService;
@@ -36,6 +38,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -233,10 +236,67 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .build();
     }
 
+    @SneakyThrows
     @Override
-//    @Transactional(rollbackFor = Exception.class)
     public void updateShortLink(ShortLinkUpdateReqDTO requestParam) {
-        // TODO
+        if (requestParam == null) {
+            throw new IllegalArgumentException("requestParam must not be null");
+        }
+
+        if (!StringUtils.hasText(requestParam.getFullShortUrl())) {
+            throw new IllegalArgumentException("fullShortUrl must not be empty");
+        }
+
+        // 1. Query existing short link (by biz key)
+        HqlQueryBuilder builder = new HqlQueryBuilder();
+        String hql = builder
+                .fromAs(ShortLink.class, "sl")
+                .select("sl")
+                .eq("sl.fullShortUrl", requestParam.getFullShortUrl())
+                .and()
+                .isNull("sl.deleted")
+                .build();
+        Map<String, Object> params = builder.getInjectionParameters();
+        builder.clear();
+        List<ShortLink> results = queryService.query(hql, params);
+
+        if (results.isEmpty()) {
+            throw new ServiceException("Short link with full short url "
+                    + requestParam.getFullShortUrl() + " cannot be found in db.");
+        }
+
+        if (results.size() > 1) {
+            throw new ServiceException("Data inconsistency: duplicate short links for "
+                    + requestParam.getFullShortUrl());
+        }
+
+        ShortLink shortLink = results.get(0);
+
+        // 2. Apply updates (only mutable fields)
+        if (StringUtils.hasText(requestParam.getOriginUrl())) {
+            shortLink.setOriginUrl(requestParam.getOriginUrl());
+        }
+
+        if (StringUtils.hasText(requestParam.getGid())) {
+            shortLink.setGid(requestParam.getGid());
+        }
+
+        if (requestParam.getValidDate() != null) {
+            shortLink.setValidDate(requestParam.getValidDate());
+        }
+
+        if (requestParam.getValidDateType() != null) {
+            shortLink.setValidDateType(requestParam.getValidDateType());
+        }
+
+        if (StringUtils.hasText(requestParam.getDescribe())) {
+            shortLink.setDescription(requestParam.getDescribe());
+        }
+
+        // 3. Persist queried/refreshed item back  to db (update path)
+        //  @param saveOrUpdate if false, inserts one objects, if exists, throws HibernateException.
+        //  If true, check if objects exists, if exists, related object will be updated.
+        queryService.save(shortLink, true);
     }
 
     @Override
