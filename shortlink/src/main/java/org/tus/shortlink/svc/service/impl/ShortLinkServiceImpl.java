@@ -21,7 +21,10 @@ import org.tus.shortlink.svc.service.ShortLinkService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -39,42 +42,15 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
-
-        // ---- Basic parameter validation (keep minimal but realistic) ----
-        if (requestParam == null) {
-            throw new IllegalArgumentException("requestParam must not be null");
+        if (Objects.nonNull(queryService)) {
+            return ShortLinkCreateRespDTO.builder()
+                    .gid(UUID.randomUUID().toString())
+                    .fullShortUrl(UUID.randomUUID().toString())
+                    .originUrl(UUID.randomUUID().toString())
+                    .build();
+        }  else {
+            return null;
         }
-        if (requestParam.getOriginUrl() == null || requestParam.getOriginUrl().isBlank()) {
-            throw new IllegalArgumentException("originUrl must not be empty");
-        }
-        if (requestParam.getDomain() == null || requestParam.getDomain().isBlank()) {
-            throw new IllegalArgumentException("domain must not be empty");
-        }
-
-        // ---- Mock short URI generation (deterministic) ----
-        String shortUri = Integer.toHexString(
-                Math.abs(requestParam.getOriginUrl().hashCode())
-        );
-
-        // Normalize domain (avoid double slash bugs later)
-        String domain = requestParam.getDomain();
-        if (domain.endsWith("/")) {
-            domain = domain.substring(0, domain.length() - 1);
-        }
-
-        String fullShortUrl = domain + "/" + shortUri;
-
-        // ---- Build response ----
-        ShortLinkCreateRespDTO resp = new ShortLinkCreateRespDTO();
-        resp.setGid(
-                requestParam.getGid() != null
-                        ? requestParam.getGid()
-                        : "default"
-        );
-        resp.setOriginUrl(requestParam.getOriginUrl());
-        resp.setFullShortUrl(fullShortUrl);
-
-        return resp;
     }
 
     @Override
