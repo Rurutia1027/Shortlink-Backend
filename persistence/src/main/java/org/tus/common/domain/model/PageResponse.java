@@ -3,7 +3,6 @@ package org.tus.common.domain.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import org.tus.common.domain.persistence.SimplePersistedObject;
 
 import java.util.Collection;
 
@@ -13,7 +12,7 @@ import java.util.Collection;
  * @param <T> Type of class to be paged
  */
 @JsonPropertyOrder(value = {"start", "page_size", "total", "elements"})
-public class PageResponse<T extends SimplePersistedObject> implements EntityTag {
+public class PageResponse<T> implements EntityTag {
     private int start;
     private int pageSize;
     private int total;
