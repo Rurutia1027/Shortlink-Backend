@@ -1,13 +1,20 @@
 package org.tus.shortlink.svc.service.impl;
 
+import cn.hutool.core.lang.UUID;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
+import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkPageReqDTO;
@@ -17,19 +24,24 @@ import org.tus.shortlink.base.dto.resp.ShortLinkBatchCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkCreateRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
+import org.tus.shortlink.base.tookit.HashUtil;
+import org.tus.shortlink.svc.entity.ShortLink;
+import org.tus.shortlink.svc.entity.ShortLinkGoto;
 import org.tus.shortlink.svc.service.ShortLinkService;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShortLinkServiceImpl implements ShortLinkService {
+
+    @Value("${shortlink.domain.default}")
+    private String createShortLinkDefaultDomain;
 
     @Autowired
     private final QueryService queryService;
@@ -40,18 +52,62 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         // TODO
     }
 
+    @SneakyThrows
     @Override
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
-        if (Objects.nonNull(queryService)) {
-            return ShortLinkCreateRespDTO.builder()
-                    .gid(UUID.randomUUID().toString())
-                    .fullShortUrl(UUID.randomUUID().toString())
-                    .originUrl(UUID.randomUUID().toString())
-                    .build();
-        }  else {
-            return null;
+        // --- basic validation ---
+        if (requestParam == null || requestParam.getOriginUrl() == null || requestParam.getOriginUrl().isBlank()) {
+            throw new IllegalArgumentException("originUrl must not be empty");
         }
+
+        // TODO: whitelist check (pending on risk module)
+        // verificationWhitelist(requestParam.getOriginUrl());
+
+        // --- generate short uri ---
+        String shortLinkSuffix = generateSuffix(requestParam);
+        String domain = createShortLinkDefaultDomain;
+        String fullShortUrl = domain + "/" + shortLinkSuffix;
+
+        // --- build ShortLink entity ---
+        ShortLink shortLink = ShortLink.builder()
+                .domain(domain)
+                .originUrl(requestParam.getOriginUrl())
+                .createdType(requestParam.getCreatedType())
+                .validDateType(requestParam.getValidDateType())
+                .validDate(requestParam.getValidDate())
+                .description(requestParam.getDescribe())
+                .shortUri(shortLinkSuffix)
+                .enableStatus(0)
+                .delTime(0L)
+                .fullShortUrl(fullShortUrl)
+                .favicon(getFavicon(requestParam.getOriginUrl()))
+                .build();
+
+        // --- build goto entity ---
+        ShortLinkGoto linkGoto = ShortLinkGoto.builder()
+                .fullShortUrl(fullShortUrl)
+                .gid(requestParam.getGid())
+                .build();
+
+        try {
+            // --- persist via Hibernate / QueryService ---
+            queryService.save(shortLink);
+            queryService.save(linkGoto);
+        } catch (Exception ex) {
+            // TODO bloom filter / duplicate short uri handling (pending redis module)
+            throw new ServiceException(String.format("Unique Shortlink generate failure=%s",
+                    fullShortUrl));
+        }
+
+        // TODO cache warm-up (pending redis module)
+        // TODO bloom filter add (pending redis module)
+        return ShortLinkCreateRespDTO.builder()
+                .fullShortUrl("http://" + fullShortUrl)
+                .originUrl(requestParam.getOriginUrl())
+                .gid(requestParam.getGid())
+                .build();
     }
+
 
     @Override
     public ShortLinkCreateRespDTO createShortLinkByLock(ShortLinkCreateReqDTO requestParam) {
@@ -176,5 +232,42 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         }
 
         return result;
+    }
+
+
+    private String generateSuffix(ShortLinkCreateReqDTO requestParam) {
+        String shorUri;
+        String originUrl = requestParam.getOriginUrl();
+        originUrl += UUID.randomUUID().toString();
+        shorUri = HashUtil.hashToBase62(originUrl);
+        // TODO [Redis / Bloom Filter]:
+        // 1. The Bloom Filter is currently used to prevent short-link suffix collisions
+        //    and to protect against cache penetration.
+        // 2. In a later phase, this Bloom Filter should be migrated to Redis
+        //    (e.g., RedisBloom module or a custom bitmap-based implementation).
+        // 3. The Bloom Filter key should be isolated by domain or business dimension
+        //    to avoid global key pollution.
+        // 4. Consider a Bloom Filter warm-up strategy during service startup
+        //    (e.g., loading existing short links from the database into Redis).
+        // 5. Since Bloom Filter do not support deletion, false positives caused by
+        //    link expiration or deletion must be handled via a compensation strategy.
+        return shorUri;
+    }
+
+    @SneakyThrows
+    private String getFavicon(String url) {
+        URL targetUrl = new URL(url);
+        HttpURLConnection connection = (HttpURLConnection) targetUrl.openConnection();
+        connection.setRequestMethod("GET");
+        connection.connect();
+        int responseCode = connection.getResponseCode();
+        if (HttpURLConnection.HTTP_OK == responseCode) {
+            Document document = Jsoup.connect(url).get();
+            Element faviconLink = document.select("link[rel~=(?i)^(shortcut )?icon]").first();
+            if (faviconLink != null) {
+                return faviconLink.attr("abs:href");
+            }
+        }
+        return null;
     }
 }

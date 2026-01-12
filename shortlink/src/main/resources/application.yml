@@ -31,3 +31,8 @@ spring:
       password: ${REDIS_PASSWORD:123456}
 server:
   port: 8081
+
+
+shortlink:
+  domain:
+    default: shortlink.tus
