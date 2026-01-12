@@ -1,6 +1,7 @@
 package org.tus.shortlink.svc.service.impl;
 
 import cn.hutool.core.lang.UUID;
+import cn.hutool.core.text.StrBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
@@ -151,48 +153,84 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     @Override
     public ShortLinkBatchCreateRespDTO batchCreateShortLink(ShortLinkBatchCreateReqDTO requestParam) {
-
-        if (requestParam == null || requestParam.getOriginUrls() == null || requestParam.getOriginUrls().isEmpty()) {
-            throw new IllegalArgumentException("originUrls must not be empty");
-        }
-
         List<String> originUrls = requestParam.getOriginUrls();
-        List<String> describes = requestParam.getDescribes() != null ? requestParam.getDescribes() : Collections.nCopies(originUrls.size(), "");
-
-        if (describes.size() < originUrls.size()) {
-            // pad missing descriptions with empty string
-            List<String> padded = new ArrayList<>(describes);
-            while (padded.size() < originUrls.size()) {
-                padded.add("");
-            }
-            describes = padded;
+        if (originUrls == null || originUrls.isEmpty()) {
+            return ShortLinkBatchCreateRespDTO.builder()
+                    .total(0)
+                    .baseLinkInfos(Collections.emptyList())
+                    .build();
         }
+        List<String> describes = requestParam.getDescribes();
+        int size = originUrls.size();
 
-        List<ShortLinkBaseInfoRespDTO> baseLinkInfos = new ArrayList<>();
+        List<ShortLink> shortLinks = new ArrayList<>(size);
+        List<ShortLinkGoto> shortLinkGotos = new ArrayList<>(size);
+        List<ShortLinkBaseInfoRespDTO> respList = new ArrayList<>(size);
 
-        for (int i = 0; i < originUrls.size(); i++) {
+        for (int i = 0; i < size; i++) {
             String originUrl = originUrls.get(i);
-            String describe = describes.get(i);
+            String describe = (describes != null && describes.size() > 1)
+                    ? describes.get(i)
+                    : null;
 
-            // deterministic short URI based on originUrl hash
-            String shortUri = Integer.toHexString(Math.abs(originUrl.hashCode()));
-            String domain = "http://short.tus.org"; // mock domain, can be made configurable
-            String fullShortUrl = domain + "/" + shortUri;
+            // TODO: add this latter
+            // verificationWhitelist(originUrl);
 
-            ShortLinkBaseInfoRespDTO baseInfo = ShortLinkBaseInfoRespDTO.builder()
+            String shortUri = generateSuffix(
+                    ShortLinkCreateReqDTO.builder()
+                            .originUrl(originUrl)
+                            .build()
+            );
+
+            String fullShortUrl = StrBuilder.create(createShortLinkDefaultDomain)
+                    .append("/")
+                    .append(shortUri)
+                    .toString();
+
+            ShortLink shortLink = ShortLink.builder()
+                    .domain(createShortLinkDefaultDomain)
                     .originUrl(originUrl)
+                    .gid(requestParam.getGid())
+                    .createdType(requestParam.getCreatedType())
+                    .validDateType(requestParam.getValidDateType())
+                    .validDate(requestParam.getValidDate())
+                    .description(describe)
+                    .shortUri(shortUri)
+                    .enableStatus(0)
+                    .delTime(0L)
                     .fullShortUrl(fullShortUrl)
-                    .describe(describe)
+                    .favicon(getFavicon(originUrl))
                     .build();
 
-            baseLinkInfos.add(baseInfo);
+            ShortLinkGoto shortLinkGoto = ShortLinkGoto.builder()
+                    .fullShortUrl(fullShortUrl)
+                    .gid(requestParam.getGid())
+                    .build();
+            shortLinks.add(shortLink);
+            shortLinkGotos.add(shortLinkGoto);
+
+            respList.add(
+                    ShortLinkBaseInfoRespDTO.builder()
+                            .fullShortUrl("http://" + fullShortUrl)
+                            .originUrl(originUrl)
+                            .originUrl(requestParam.getGid())
+                            .build()
+            );
         }
 
-        ShortLinkBatchCreateRespDTO resp = new ShortLinkBatchCreateRespDTO();
-        resp.setTotal(baseLinkInfos.size());
-        resp.setBaseLinkInfos(baseLinkInfos);
+        try {
+            queryService.saveAll(shortLinks);
+            queryService.saveAll(shortLinkGotos);
+        } catch (DuplicateKeyException ex) {
+            // TODO: review error isolation strategy (partial success vs retry here!)
+            throw new ServiceException("Batch short link creation failed due to duplicate " +
+                    "key");
+        }
 
-        return resp;
+        return ShortLinkBatchCreateRespDTO.builder()
+                .total(respList.size())
+                .baseLinkInfos(respList)
+                .build();
     }
 
     @Override
