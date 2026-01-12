@@ -3,6 +3,7 @@ package org.tus.common.domain.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import lombok.Builder;
 
 import java.util.Collection;
 
