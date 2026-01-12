@@ -72,33 +72,33 @@ public class ShortLinkPageRespDTO {
      */
     private String favicon;
 
-    /**
-     * Historical page views (PV)
-     */
-    private Integer totalPv;
-
-    /**
-     * Today's page views (PV)
-     */
-    private Integer todayPv;
-
-    /**
-     * Historical unique visitors (UV)
-     */
-    private Integer totalUv;
-
-    /**
-     * Today's unique visitors (UV)
-     */
-    private Integer todayUv;
-
-    /**
-     * Historical unique IPs (UIP)
-     */
-    private Integer totalUip;
-
-    /**
-     * Today's unique IPs (UIP)
-     */
-    private Integer todayUip;
+//    /**
+//     * Historical page views (PV)
+//     */
+//    private Integer totalPv;
+//
+//    /**
+//     * Today's page views (PV)
+//     */
+//    private Integer todayPv;
+//
+//    /**
+//     * Historical unique visitors (UV)
+//     */
+//    private Integer totalUv;
+//
+//    /**
+//     * Today's unique visitors (UV)
+//     */
+//    private Integer todayUv;
+//
+//    /**
+//     * Historical unique IPs (UIP)
+//     */
+//    private Integer totalUip;
+//
+//    /**
+//     * Today's unique IPs (UIP)
+//     */
+//    private Integer todayUip;
 }
