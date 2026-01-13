@@ -60,5 +60,5 @@ jobs:
       # 9️⃣ Build & Push Docker image for shortlink
       - name: Build & Push Shortlink Docker Image
         run: |
-          chmod +x .bin/build-images.sh
+          chmod +x ./bin/build-images.sh
           ./bin/build-images.sh ${{ github.sha }}
