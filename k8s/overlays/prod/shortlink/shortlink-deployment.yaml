@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shortlink
+  namespace: shortlink
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shortlink
+  template:
+    metadata:
+      labels:
+        app: shortlink
+    spec:
+      containers:
+        - name: shortlink
+          image: nanachi1027/shortlink-shortlink:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SPRING_PROFILES_ACTIVE # enable prod
+              value: prod
+            - name: SPRING_FLYWAY_ENABLED
+              value: "true" # disable it first
+            - name: SHORTLINK_DOMAIN_DEFAULT
+              value: shortlink.tus  # shortlink.domain.default
+            - name: SHORTLINK_DB_URL
+              value: jdbc:postgresql://postgres-shortlink.shortlink.svc.cluster.local:5433/shortlink
+            - name: SHORTLINK_DB_USER
+              value: admin
+            - name: SHORTLINK_DB_PASSWORD
+              value: admin
