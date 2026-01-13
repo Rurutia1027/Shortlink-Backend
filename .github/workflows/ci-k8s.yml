@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-k8s-deploy:
     runs-on: ubuntu-latest
 
     steps:
