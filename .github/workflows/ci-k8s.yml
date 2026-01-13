@@ -1,4 +1,4 @@
-name: SaaS Short Link Platform Build
+name: Short link Backend Build and K8s Cluster Deployment
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-k8s-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -46,6 +46,9 @@ jobs:
           bash bin/k8s-up-ci.sh
           
           # Deploy Postgres *2 and Redis *1 for Project Mvn Verify
+          # TODO: here we gonna add shortlink-service & shortlink-admin yamls to prod folder
+          # then here we gonna setup prod env with monitor, istio, admin and shortlink-svc ready 
+          # TODO: kubectl apply -k k8s/overlays/prod/
           kubectl apply -k k8s/overlays/dev/
           
           # Waiting for all pods running 

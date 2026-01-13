@@ -2,6 +2,7 @@ package org.tus.shortlink.svc.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -55,6 +56,7 @@ public class TrashController {
     /**
      * DELETE a short link permanently
      */
+    @DeleteMapping("/remove")
     public Result<Void> delete(@RequestBody RecycleBinRemoveReqDTO requestParam) {
         recycleBinService.removeRecycle(requestParam);
         return Results.success();
