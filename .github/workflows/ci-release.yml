@@ -1,4 +1,4 @@
-name: SaaS Short Link Platform Build
+name: SaaS Short Link Platform Build & Release
 
 on:
   push:
@@ -7,19 +7,22 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2️⃣ Setup Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
+      # 3️⃣ Cache Maven dependencies
       - name: Cache Maven packages
         uses: actions/cache@v3
         with:
@@ -28,14 +31,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-
+      # 4️⃣ Build JAR
       - name: Build Project
-        run: |
-          mvn clean package  
- 
+        run: mvn clean package -DskipTests
 
-#     TODO here  - name: Docker Login
-#        uses: docker/login-action@v2
-#        with:
-#          username: ${{ secrets.DOCKER_USERNAME }}
-#          password: ${{ secrets.DOCKER_PASSWORD }}
+      # 5️⃣ Docker login
+      - name: Docker Login
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 6️⃣ Build Docker image
+      - name: Build Docker image
+        run: |
+          IMAGE_NAME=nanachi1027/shortlink-service
+          IMAGE_TAG=${GITHUB_SHA::8}  # short commit hash as tag
+          docker build -t $IMAGE_NAME:$IMAGE_TAG -f current/shortlink/Dockerfile .
+
+      # 7️⃣ Push Docker image to registry
+      - name: Push Docker image
+        run: |
+          IMAGE_NAME=nanachi1027/shortlink-service
+          IMAGE_TAG=${GITHUB_SHA::8}
+          docker push $IMAGE_NAME:$IMAGE_TAG
+
+      # 8️⃣ Optional: Tag latest
+      - name: Tag latest
+        run: |
+          IMAGE_NAME=nanachi1027/shortlink-service
+          docker tag $IMAGE_NAME:${GITHUB_SHA::8} $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:latest
