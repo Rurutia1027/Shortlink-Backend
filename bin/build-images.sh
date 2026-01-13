@@ -10,7 +10,8 @@ if [ -z "$TAG" ]; then
   exit 1
 fi
 
-modules=(admin shortlink)
+#modules=(admin shortlink)
+modules=(shortlink)
 
 # Build and push multi-arch images
 for module in "${modules[@]}"; do
@@ -25,5 +26,5 @@ done
 
 # Inspect pushed images (optional)
 for module in "${modules[@]}"; do
-  docker buildx imagetools inspect nanachi1027/aurora-$module:$TAG
+  docker buildx imagetools inspect nanachi1027/shortlink-$module:$TAG
 done

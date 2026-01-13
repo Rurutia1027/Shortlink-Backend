@@ -42,23 +42,8 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 6️⃣ Build Docker image
-      - name: Build Docker image
+      # 6️⃣ Build Docker images and Push to DockerHub
+      - name: Build & Push Docker Images
         run: |
-          IMAGE_NAME=nanachi1027/shortlink-service
-          IMAGE_TAG=${GITHUB_SHA::8}  # short commit hash as tag
-          docker build -t $IMAGE_NAME:$IMAGE_TAG -f current/shortlink/Dockerfile .
-
-      # 7️⃣ Push Docker image to registry
-      - name: Push Docker image
-        run: |
-          IMAGE_NAME=nanachi1027/shortlink-service
-          IMAGE_TAG=${GITHUB_SHA::8}
-          docker push $IMAGE_NAME:$IMAGE_TAG
-
-      # 8️⃣ Optional: Tag latest
-      - name: Tag latest
-        run: |
-          IMAGE_NAME=nanachi1027/shortlink-service
-          docker tag $IMAGE_NAME:${GITHUB_SHA::8} $IMAGE_NAME:latest
-          docker push $IMAGE_NAME:latest
+          chmod +x ./bin/build-images.sh
+          ./bin/build-images.sh ${{ github.sha }}
