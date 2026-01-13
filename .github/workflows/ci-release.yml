@@ -1,4 +1,4 @@
-name: SaaS Short Link Platform Build & Release
+name: Short link Backend Build and Docker Images Generated Release
 
 on:
   push:

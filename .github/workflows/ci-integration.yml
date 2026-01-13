@@ -1,4 +1,4 @@
-name: SaaS Short Link Platform Build
+name: Short link Backend Build and Integration Tests
 
 on:
   push:
