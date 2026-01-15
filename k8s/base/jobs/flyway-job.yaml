@@ -5,13 +5,11 @@ metadata:
   namespace: shortlink
 spec:
   backoffLimit: 3
-  ttlSecondsAfterFinished: 600   # 调试期保留 Pod
+  ttlSecondsAfterFinished: 600   # keep Pod for debugging
   template:
     spec:
       restartPolicy: OnFailure
-
       containers:
         - name: flyway
           image: nanachi1027/shortlink-flyway:latest
-
-          command: ["java", "-cp", "/app/app.jar", "org.tus.shortlink.svc.flyway.FlywayStandalone"]
+          command: ["java", "-jar", "/app/app.jar"]
