@@ -10,31 +10,8 @@ spec:
     spec:
       restartPolicy: OnFailure
 
-      initContainers:
-        - name: wait-for-postgres
-          image: postgres:15
-          env:
-            - name: PGPASSWORD
-              value: admin
-          command:
-            - sh
-            - -c
-            - |
-              until pg_isready \
-                -h postgres.shortlink.svc.cluster.local \
-                -p 5432 \
-                -U admin; do
-                echo "Waiting for PostgreSQL..."
-                sleep 3
-              done
-              echo "PostgreSQL is ready."
-
       containers:
         - name: flyway
-          image: nanachi1027/shortlink-shortlink:latest
+          image: nanachi1027/shortlink-flyway:latest
 
-          command:
-            - java
-            - -cp
-            - /app/app.jar
-            - org.tus.shortlink.svc.flyway.FlywayStandalone
+          command: ["java", "-cp", "/app/app.jar", "org.tus.shortlink.svc.flyway.FlywayStandalone"]
