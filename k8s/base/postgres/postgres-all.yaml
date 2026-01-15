@@ -56,5 +56,5 @@ metadata:
 data:
   00_create_schemas.sql: |
     -- Create multiple schemas in a single PostgreSQL instance
-    CREATE SCHEMA IF NOT EXISTS admin;
-    CREATE SCHEMA IF NOT EXISTS shortlink;
+    CREATE database admin;
+    CREATE database shortlink;
