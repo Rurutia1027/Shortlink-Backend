@@ -9,7 +9,7 @@ public class FlywayStandalone {
         // Configure Flyway
         Flyway flyway = Flyway.configure()
                 .dataSource(
-                        "jdbc:postgresql://localhost:5432/shortlink",
+                        "jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/shortlink",
                         "admin",
                         "admin")
                 .table("flyway_schema_history")
