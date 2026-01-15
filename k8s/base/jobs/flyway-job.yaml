@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flyway-shortlink
+  namespace: shortlink
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:15
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready \
+                -h postgres.shortlink.svc.cluster.local \
+                -p 5432 \
+                -U admin; do
+                echo "Waiting for PostgreSQL..."
+                sleep 3
+              done
+              echo "PostgreSQL is ready."
+
+      containers:
+        - name: flyway
+          image: nanachi1027/shortlink-shortlink:latest
+          # trigger docker image's inner app.jar's Flyway DB migration logic
+          command:
+            - java
+            - -cp
+            - app.jar
+            - org.tus.shortlink.svc.flyway.FlywayStandalone

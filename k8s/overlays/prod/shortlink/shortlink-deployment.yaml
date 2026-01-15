@@ -22,7 +22,7 @@ spec:
             - name: SPRING_PROFILES_ACTIVE # enable prod
               value: prod
             - name: SPRING_FLYWAY_ENABLED
-              value: "true" # disable it first
+              value: "false" # Disable DB migration, hand over DB migration to K8s Job
             - name: SHORTLINK_DOMAIN_DEFAULT
               value: shortlink.tus  # shortlink.domain.default
             - name: SHORTLINK_DB_URL
