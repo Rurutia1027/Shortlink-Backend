@@ -11,7 +11,7 @@ public class FlywayStandalone {
         // so that, docker & yaml set options can overwrite configs
         Flyway flyway = Flyway.configure()
                 .dataSource(
-                        "jdbc:postgresql://localhost:5432/shortlink",
+                        "jdbc:postgresql://postgres-shortlink.shortlink.svc.cluster.local:5432/shortlink",
                         "admin",
                         "admin")
                 .table("flyway_schema_history")

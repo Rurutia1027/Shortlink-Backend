@@ -9,12 +9,6 @@ spring:
     username: ${SHORTLINK_DB_USER:admin}
     password: ${SHORTLINK_DB_PASSWORD:admin}
 
-# deprecated, flyway -> shortlink-flyway module
-#  flyway:
-#    enabled: true
-#    baseline-on-migrate: true
-#    locations: classpath:db/migration
-
   jpa:
     hibernate:
       ddl-auto: none           # disable auto create/alter tables in dev, let flyway do it
