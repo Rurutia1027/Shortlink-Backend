@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - postgres/
   - redis/
+  - flyway-job.yaml
