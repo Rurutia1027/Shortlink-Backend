@@ -6,7 +6,7 @@ spring:
     name: ${APP_NAME:shortlink}
 
   datasource:
-    url: ${SHORTLINK_DB_URL:jdbc:postgresql://postgres-shortlink.shortlink.svc.cluster.local:5433/shortlink}
+    url: ${SHORTLINK_DB_URL:jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/shortlink}
     username: ${SHORTLINK_DB_USER:admin}
     password: ${SHORTLINK_DB_PASSWORD:admin}
 

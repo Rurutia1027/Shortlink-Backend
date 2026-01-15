@@ -5,7 +5,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${SHORTLINK_DB_URL:jdbc:postgresql://127.0.0.1:5433/shortlink}
+    url: ${SHORTLINK_DB_URL:jdbc:postgresql://127.0.0.1:5432/shortlink}
     username: ${SHORTLINK_DB_USER:admin}
     password: ${SHORTLINK_DB_PASSWORD:admin}
 

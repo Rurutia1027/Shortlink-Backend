@@ -26,7 +26,7 @@ spec:
             - name: SHORTLINK_DOMAIN_DEFAULT
               value: shortlink.tus  # shortlink.domain.default
             - name: SHORTLINK_DB_URL
-              value: jdbc:postgresql://postgres-shortlink.shortlink.svc.cluster.local:5433/shortlink
+              value: jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/shortlink
             - name: SHORTLINK_DB_USER
               value: admin
             - name: SHORTLINK_DB_PASSWORD
