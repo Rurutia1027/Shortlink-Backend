@@ -21,8 +21,6 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE # enable prod
               value: prod
-            - name: SPRING_FLYWAY_ENABLED
-              value: "true" # disable it first
             - name: SHORTLINK_DOMAIN_DEFAULT
               value: shortlink.tus  # shortlink.domain.default
             - name: SHORTLINK_DB_URL

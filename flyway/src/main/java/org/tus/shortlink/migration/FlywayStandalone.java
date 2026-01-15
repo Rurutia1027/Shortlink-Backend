@@ -1,4 +1,4 @@
-package org.tus.shortlink.svc.flyway;
+package org.tus.shortlink.migration;
 
 import org.flywaydb.core.Flyway;
 
@@ -7,9 +7,11 @@ public class FlywayStandalone {
     public static void main(String[] args) {
 
         // Configure Flyway
+        // TODO: config options should be extracted and support pass via env parameters
+        // so that, docker & yaml set options can overwrite configs
         Flyway flyway = Flyway.configure()
                 .dataSource(
-                        "jdbc:postgresql://localhost:5432/shortlink",
+                        "jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/shortlink",
                         "admin",
                         "admin")
                 .table("flyway_schema_history")

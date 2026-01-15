@@ -25,6 +25,7 @@
         <module>identity</module>
         <module>clients</module>
         <module>redis</module>
+        <module>flyway</module>
         <module>persistence</module>
     </modules>
 

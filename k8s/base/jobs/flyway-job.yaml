@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flyway-shortlink
+  namespace: shortlink
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600   # keep Pod for debugging
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: flyway
+          image: nanachi1027/shortlink-flyway:latest
+          command: ["java", "-jar", "/app/app.jar"]
