@@ -5,6 +5,7 @@ metadata:
   namespace: shortlink
 spec:
   backoffLimit: 3
+  ttlSecondsAfterFinished: 600   # 调试期保留 Pod
   template:
     spec:
       restartPolicy: OnFailure
@@ -12,6 +13,9 @@ spec:
       initContainers:
         - name: wait-for-postgres
           image: postgres:15
+          env:
+            - name: PGPASSWORD
+              value: admin
           command:
             - sh
             - -c
@@ -28,9 +32,9 @@ spec:
       containers:
         - name: flyway
           image: nanachi1027/shortlink-shortlink:latest
-          # trigger docker image's inner app.jar's Flyway DB migration logic
+
           command:
             - java
             - -cp
-            - app.jar
+            - /app/app.jar
             - org.tus.shortlink.svc.flyway.FlywayStandalone

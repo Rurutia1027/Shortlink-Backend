@@ -76,9 +76,6 @@
                     <plugin>
                         <groupId>org.springframework.boot</groupId>
                         <artifactId>spring-boot-maven-plugin</artifactId>
-                        <configuration>
-                            <mainClass>org.tus.shortlink.svc.ShortLinkApplication</mainClass>
-                        </configuration>
                         <executions>
                             <execution>
                                 <goals>
