@@ -2,10 +2,10 @@ apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: shortlink-gateway
-  namespace: shortlink
+  namespace: istio-system
 spec:
   selector:
-    istio: ingressgateway
+    istio: ingress
   servers:
     - port:
         number: 80

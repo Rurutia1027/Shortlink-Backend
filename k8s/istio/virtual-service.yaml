@@ -1,19 +1,19 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: shortlink
-  namespace: shortlink
+  name: vs-shortlink
+  namespace: istio-system
 spec:
   hosts:
     - "*" # at the beginning, allow all hosts for debugging easy
   gateways:
-    - shortlink-gateway # virtual service bind to gateway is required
+    - shortlink-gateway # cross namespace ${ns}/${gw-name} virtual service bind to gateway is required
   http:
     - match:
         - uri:
             prefix: /api/shortlink
       route:
         - destination:
-            host: shortlink # this should be the service (svc) name, shortlink is our shortlink module svc name
+            host: shortlink.shortlink.svc.cluster.local
             port:
               number: 8081 # this port should be the port declared in the associated service

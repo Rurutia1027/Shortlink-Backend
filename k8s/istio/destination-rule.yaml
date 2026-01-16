@@ -1,10 +1,10 @@
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
-  name: shortlink
-  namespace: shortlink
+  name: dr-shortlink
+  namespace: istio-system
 spec:
-  host: shortlink
+  host: shortlink.shortlink.svc.cluster.local
   trafficPolicy:
     loadBalancer:
       simple: ROUND_ROBIN
