@@ -64,6 +64,19 @@ nodes:
         hostPort: 8443
         listenAddress: "0.0.0.0"
         protocol: TCP
+#      # new Istio Gateway NodePort ports mapping
+#      - containerPort: 80        # HTTP
+#        hostPort: 30800          # map to host port 30800
+#        listenAddress: "0.0.0.0"
+#        protocol: TCP
+#      - containerPort: 443       # HTTPS
+#        hostPort: 30443          # map to host port 30443
+#        listenAddress: "0.0.0.0"
+#        protocol: TCP
+#      - containerPort: 15021     # metrics/status
+#        hostPort: 30279
+#        listenAddress: "0.0.0.0"
+#        protocol: TCP
 
     extraMounts:
       - hostPath: /var/log

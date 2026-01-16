@@ -37,6 +37,7 @@ spring:
 management:
   endpoints:
     web:
+      base-path: /api/shortlink/actuator
       exposure:
         include: health,info
   endpoint:

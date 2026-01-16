@@ -7,4 +7,5 @@ resources:
   - namespace.yaml
   - ../../base/postgres/
   - ../../base/redis/
+  - ../../istio/
   - shortlink/
