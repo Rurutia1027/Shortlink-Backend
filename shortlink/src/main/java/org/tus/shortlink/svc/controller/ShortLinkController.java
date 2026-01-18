@@ -37,10 +37,10 @@ public class ShortLinkController {
      * Redirect short link to original URL
      */
     @GetMapping("/{shortUri}")
-    public void redirectToOriginal(@PathVariable String shortUrl,
+    public void redirectToOriginal(@PathVariable("shortUri") String shortUri,
                                    HttpServletRequest httpRequest,
                                    HttpServletResponse httpResponse) throws IOException {
-        shortLinkService.restoreUrl(shortUrl, httpRequest, httpResponse);
+        shortLinkService.restoreUrl(shortUri, httpRequest, httpResponse);
     }
 
     /**

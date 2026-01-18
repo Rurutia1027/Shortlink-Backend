@@ -1,18 +1,18 @@
-# 🚀 ShortLink SaaS Platform 
+# 🚀 ShortLink SaaS Platform
 [![Short link Backend Build and K8s Cluster Deployment](https://github.com/Rurutia1027/Shortlink-Backend/actions/workflows/ci-k8s.yml/badge.svg)](https://github.com/Rurutia1027/Shortlink-Backend/actions/workflows/ci-k8s.yml)
 
-A scalable, high-performance SaaS short link system designed for enterprise-grade usage. Built with modern Java stack (
-JDK 17, Spring Boot 3, Spring Cloud), it provides secure, efficient, and observable short link services including link
+A scalable, high-performance SaaS short link system designed for enterprise-grade usage. Built with a modern Java stack
+(JDK 17, Spring Boot 3, Spring Cloud), it provides secure, efficient, and observable short link services including link
 generation, redirection, expiration, statistics, and tenant isolation.
 
------
+---
 
 ## 🌐 What Is a Short Link System?
 
 A short link (short URL) maps a long original URL to a shorter one, making it easier to share and track. The system
 generates a unique identifier that redirects to the original URL when accessed.
 
-### Process Overview:
+### Process Overview
 
 1. **Generate short code** via hash or sequential ID algorithms
 2. **Store mapping** between short code and original URL in DB/cache
@@ -20,7 +20,7 @@ generates a unique identifier that redirects to the original URL when accessed.
 4. **Redirect user** via HTTP 302
 5. **Collect metrics** such as PV, UV, IP, referrer, device, etc.
 
------
+---
 
 ## ✨ Key Features
 
@@ -34,21 +34,30 @@ generates a unique identifier that redirects to the original URL when accessed.
 - 📱 App deep linking / QR code generation
 - 🖥️ Admin dashboard with SaaS-style tenant management
 
-------
+---
 
-## 🧱 System Architecture
+## 🧩 Refactor Highlights
 
-| Layer             | Technologies                                       |
-|-------------------|----------------------------------------------------|
-| Frontend          | Vue 3 + Vite + Element Plus                        |
-| API Gateway       | Spring Cloud Gateway + JWT Auth                    |
-| Backend Services  | Spring Boot 3 + Spring Cloud + Microservices       |
-| Persistence       | MyBatis Plus + MySQL (sharding) + HBase (optional) |
-| Cache Layer       | Redis + Local Cache + Bloom Filter                 |
-| Messaging         | RocketMQ (for async stats, expiration, logs)       |
-| Registry & Config | Nacos                                              |
-| Observability     | Sleuth + Zipkin                                    |
-| DevOps            | Docker + Jenkins + Nginx + Kubernetes (optional)   |
+- ✅ Migrated to a shared `HqlQueryBuilder` to avoid verbose JPA repositories and improve maintainability.
+- ✅ Split into clear modules (`shortlink`, `identity`, `admin`, `persistence`, `base`, `flyway`) to reduce coupling.
+- ✅ Added Flyway-based schema migrations and standardized DB configs.
+- ✅ Unified DTO and error conventions across services.
+
+---
+
+## 🧱 System Architecture (Updated)
+
+| Layer             | Technologies                                   |
+|-------------------|------------------------------------------------|
+| Frontend          | Vue 3 + Vite + Element Plus                    |
+| API Gateway       | Spring Cloud Gateway + JWT Auth                |
+| Backend Services  | Spring Boot 3 + Spring Cloud + Microservices   |
+| Persistence       | Hibernate (native) + PostgreSQL + Flyway       |
+| Cache Layer       | Redis + Local Cache + Bloom Filter             |
+| Messaging         | RocketMQ (async stats, expiration, logs)       |
+| Service Mesh      | Istio (replacing Consul)                       |
+| Observability     | Sleuth + Zipkin + Prometheus/Grafana (planned) |
+| DevOps            | Docker + Kubernetes + Jenkins (optional)       |
 
 ---
 
