@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
@@ -59,6 +60,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     @SneakyThrows
     @Override
+    @Transactional
     public ShortLinkCreateRespDTO createShortLink(ShortLinkCreateReqDTO requestParam) {
         // --- basic validation ---
         if (requestParam == null || requestParam.getOriginUrl() == null || requestParam.getOriginUrl().isBlank()) {
@@ -156,6 +158,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     }
 
     @Override
+    @Transactional
     public ShortLinkBatchCreateRespDTO batchCreateShortLink(ShortLinkBatchCreateReqDTO requestParam) {
         List<String> originUrls = requestParam.getOriginUrls();
         if (originUrls == null || originUrls.isEmpty()) {
