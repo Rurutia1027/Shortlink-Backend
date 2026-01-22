@@ -1,4 +1,13 @@
 package org.tus.shortlink.admin.service.impl;
 
-public class RecycleBinServiceImpl {
+import org.tus.common.domain.model.PageResponse;
+import org.tus.shortlink.admin.service.RecycleBinService;
+import org.tus.shortlink.base.dto.req.ShortLinkRecycleBinPageReqDTO;
+import org.tus.shortlink.base.dto.resp.ShortLinkPageRespDTO;
+
+public class RecycleBinServiceImpl implements RecycleBinService {
+    @Override
+    public PageResponse<ShortLinkPageRespDTO> pageRecycleBinShortLink(ShortLinkRecycleBinPageReqDTO requestParam) {
+        return null;
+    }
 }
