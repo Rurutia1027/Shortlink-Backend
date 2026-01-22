@@ -11,7 +11,7 @@ if [ -z "$TAG" ]; then
 fi
 
 #modules=(admin shortlink)
-modules=(shortlink flyway)
+modules=(shortlink flyway admin)
 
 # Build and push multi-arch images
 for module in "${modules[@]}"; do

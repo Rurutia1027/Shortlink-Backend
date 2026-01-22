@@ -4,4 +4,7 @@ kind: Kustomization
 resources:
   - postgres/
   - redis/
-  - flyway-job.yaml
+# Now we manually execute job files when k8s and base services are up
+# More granularity scheduling/orchestration gonna hand over to GitOp/ArgoCD
+#  - flyway-admin-job.yaml
+#  - flyway-shortlink-job.yaml

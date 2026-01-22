@@ -12,7 +12,7 @@ spec:
       containers:
         - name: flyway
           image: nanachi1027/shortlink-flyway:latest
-          command: ["java", "-jar", "/app/app.jar"]
+          command: [ "java", "-jar", "/app/app.jar" ]
           env:
             - name: FLYWAY_DB_URL
               value: jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/shortlink
@@ -21,7 +21,10 @@ spec:
             - name: FLYWAY_DB_PASSWORD
               value: admin
             - name: FLYWAY_SCHEMA_TABLE
-              value: flyway_schema_history
-            # TODO: later support multi-path locations per DB
+              value: flyway_schema_history_shortlink
             - name: FLYWAY_LOCATIONS
-              value: classpath:db/migration
+              value: classpath:migration/db/shortlink
+            - name: FLYWAY_BASELINE_ON_MIGRATE
+              value: "false"
+            - name: FLYWAY_OUT_OF_ORDER
+              value: "true"
