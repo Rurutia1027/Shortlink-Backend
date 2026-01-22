@@ -1,6 +1,7 @@
 package org.tus.shortlink.admin.config;
 
 import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.orm.hibernate5.HibernateTransactionManager;
@@ -12,11 +13,15 @@ import org.tus.common.domain.persistence.QueryService;
 import javax.sql.DataSource;
 import java.util.Properties;
 
-@Configuration
+//@Configuration
 public class AdminPersistenceConfig {
+
+    @Value("${spring.jpa.hibernate.ddl-auto:none}")
+    private String ddlAuto;
+
     /**
      * Hibernate SessionFactory backed by Spring Boot DataSource.
-     * Schema is managed by Flyway, not Hibernate.
+     * Schema can be managed by Hibernate (dev) or Flyway (prod).
      */
     @Bean
     public LocalSessionFactoryBean sessionFactory(DataSource dataSource) {
@@ -30,7 +35,7 @@ public class AdminPersistenceConfig {
 
         Properties props = new Properties();
         props.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
-        props.put("hibernate.hbm2ddl.auto", "none");
+        props.put("hibernate.hbm2ddl.auto", ddlAuto);
 
         factory.setHibernateProperties(props);
         return factory;
