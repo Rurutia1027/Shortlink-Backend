@@ -29,4 +29,14 @@ public class ShortLinkStatsAccessRecordReqDTO {
      * Enable status: 0 = enabled, 1 = disabled
      */
     private Integer enableStatus;
+
+    /**
+     * Current page number (start from 1)
+     */
+    private Integer current = 1;
+
+    /**
+     * Page size
+     */
+    private Integer size = 10;
 }
