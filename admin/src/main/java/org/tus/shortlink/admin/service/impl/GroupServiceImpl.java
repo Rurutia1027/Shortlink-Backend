@@ -1,5 +1,6 @@
 package org.tus.shortlink.admin.service.impl;
 
+import org.springframework.stereotype.Service;
 import org.tus.shortlink.admin.service.GroupService;
 import org.tus.shortlink.base.dto.req.ShortLinkGroupSortReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkGroupUpdateReqDTO;
@@ -7,6 +8,7 @@ import org.tus.shortlink.base.dto.resp.ShortLinkGroupRespDTO;
 
 import java.util.List;
 
+@Service
 public class GroupServiceImpl implements GroupService {
     @Override
     public void saveGroup(String groupName) {
