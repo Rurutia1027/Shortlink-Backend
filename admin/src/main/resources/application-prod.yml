@@ -47,3 +47,14 @@ management:
 logging:
   level:
     root: INFO
+
+# Shortlink service configuration
+shortlink:
+  service:
+    # K8s service name for internal communication
+    # Format: http://<service-name>.<namespace>.svc.cluster.local:<port>
+    base-url: ${SHORTLINK_SERVICE_URL:http://shortlink.shortlink.svc.cluster.local:8081}
+    # HTTP client configuration
+    connect-timeout: 5000  # milliseconds
+    read-timeout: 10000    # milliseconds
+    write-timeout: 10000   # milliseconds

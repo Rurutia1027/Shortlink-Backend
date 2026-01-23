@@ -28,6 +28,17 @@ spring:
 server:
   port: 8082
 
+# Shortlink service configuration (dev: local IDEA startup)
+shortlink:
+  service:
+    # Dev: services run locally via IDEA, use localhost
+    # Prod: use K8s service DNS (configured in application-prod.yml)
+    base-url: ${SHORTLINK_SERVICE_URL:http://localhost:8081}
+    # HTTP client configuration
+    connect-timeout: 5000  # milliseconds
+    read-timeout: 10000    # milliseconds
+    write-timeout: 10000   # milliseconds
+
 # actuator endpoint
 management:
   endpoints:
