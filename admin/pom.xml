@@ -27,6 +27,11 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
         </dependency>
+        <!-- WebClient for HTTP calls to shortlink service -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.tus.shortlink</groupId>
             <artifactId>shortlink-base</artifactId>
