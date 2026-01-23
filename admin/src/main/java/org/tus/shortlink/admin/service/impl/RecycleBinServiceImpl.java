@@ -9,6 +9,7 @@ import org.tus.common.domain.persistence.QueryService;
 import org.tus.shortlink.admin.entity.Group;
 import org.tus.shortlink.admin.remote.ShortLinkActualRemoteService;
 import org.tus.shortlink.admin.service.RecycleBinService;
+import org.tus.shortlink.base.biz.UserContext;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.common.convention.result.Result;
 import org.tus.shortlink.base.dto.req.ShortLinkRecycleBinPageReqDTO;
@@ -32,22 +33,22 @@ public class RecycleBinServiceImpl implements RecycleBinService {
 
     @Override
     public PageResponse<ShortLinkPageRespDTO> pageRecycleBinShortLink(ShortLinkRecycleBinPageReqDTO requestParam) {
-        // TODO: Get username from UserContext
-        // String username = UserContext.getUsername();
-        // For now, throw exception to indicate UserContext is needed
-        throw new ServiceException("UserContext not implemented. Please implement " +
-                "UserContext.getUsername()");
+        String username = UserContext.getUsername();
+        if (username == null || username.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first");
+        }
+        return pageRecycleBinShortLink(username, requestParam);
     }
 
     /**
      * Page query recycle bin short links for a specific username
-     * This is a helper method that can be called once UserContext is implemented
+     * Internal helper method
      *
      * @param username     username
      * @param requestParam request parameters
      * @return page response with short link list
      */
-    public PageResponse<ShortLinkPageRespDTO> pageRecycleBinShortLink(String username,
+    private PageResponse<ShortLinkPageRespDTO> pageRecycleBinShortLink(String username,
                                                                       ShortLinkRecycleBinPageReqDTO requestParam) {
         if (requestParam == null) {
             throw new IllegalArgumentException("requestParam must not be null");
