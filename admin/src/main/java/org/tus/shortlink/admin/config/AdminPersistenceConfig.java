@@ -13,7 +13,7 @@ import org.tus.common.domain.persistence.QueryService;
 import javax.sql.DataSource;
 import java.util.Properties;
 
-//@Configuration
+@Configuration
 public class AdminPersistenceConfig {
 
     @Value("${spring.jpa.hibernate.ddl-auto:none}")
