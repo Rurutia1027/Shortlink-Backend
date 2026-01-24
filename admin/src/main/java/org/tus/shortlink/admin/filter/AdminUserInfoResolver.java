@@ -39,7 +39,7 @@ public class AdminUserInfoResolver implements UserInfoResolver {
     // private final UserService userService;
 
     @Override
-    public UserInfoDTO resolverUserInfo(String token) {
+    public UserInfoDTO resolveUserInfo(String token) {
         // 1. Priority: Check SecurityContext (if Spring Security Filter already processed)
         // TODO: Implement when Spring Security is added
         // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
