@@ -12,6 +12,7 @@ import org.tus.common.domain.persistence.QueryService;
 import org.tus.shortlink.admin.entity.User;
 import org.tus.shortlink.admin.service.GroupService;
 import org.tus.shortlink.admin.service.UserService;
+import org.tus.shortlink.base.biz.UserContext;
 import org.tus.shortlink.base.common.convention.exception.ClientException;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.common.enums.UserErrorCodeEnum;
@@ -23,6 +24,7 @@ import org.tus.shortlink.base.dto.resp.UserRespDTO;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -186,16 +188,77 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("requestParam must not be null");
         }
 
-        // TODO: Get username form UserContext and verify
-        // String currentUsername = UserContext.getUsername();
-        // if (Objects.equals(requestParam.getUsername(), currentUsername()){
-        //     throw new ClientException("Invalid request for current login user update
-        //     request");
-        // }
+        String currentUsername = UserContext.getUsername();
+        if (currentUsername == null || currentUsername.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first.");
+        }
 
-        // For now, throw exception to indicate UserContext is needed
-        throw new ServiceException("UserContext not implemented. Please implement " +
-                "UserContext.getUsername()");
+        // Verify that the update request is for the current logged-in user
+        if (Objects.equals(requestParam.getUsername(), currentUsername)) {
+            throw new ClientException("Current login user update request exception.");
+        }
+
+        updateUser(currentUsername, requestParam);
+    }
+
+    /**
+     * Update user for a specific username
+     * Internal helper method
+     */
+    @Transactional
+    public void updateUser(String currentUsername, UserUpdateReqDTO requestParam) {
+        if (requestParam == null) {
+            throw new IllegalArgumentException("requestParam must not be null");
+        }
+
+        // Verify that the update request is for the current logged-in user
+        if (!Objects.equals(requestParam.getUsername(), currentUsername)) {
+            throw new ClientException("Current login request invalid!");
+        }
+
+        // 1. Query existing user
+        HqlQueryBuilder builder = new HqlQueryBuilder();
+        String hql = builder
+                .fromAs(User.class, "u")
+                .select("u")
+                .eq("u.username", requestParam.getUsername())
+                .and()
+                .isNull("u.deleted")
+                .build();
+
+        Map<String, Object> params = builder.getInjectionParameters();
+        builder.clear();
+
+        @SuppressWarnings("unchecked")
+        List<User> results = queryService.query(hql, params);
+
+        if (results == null || results.isEmpty()) {
+            throw new ServiceException(UserErrorCodeEnum.USER_NULL);
+        }
+
+        if (results.size() > 1) {
+            throw new ServiceException("Data inconsistency: duplicate users for username: " + requestParam.getUsername());
+        }
+
+        User user = results.get(0);
+
+        // 2. Update fields (only mutable fields)
+        if (requestParam.getRealName() != null) {
+            user.setRealName(requestParam.getRealName());
+        }
+
+        if (requestParam.getPhone() != null) {
+            user.setPhone(requestParam.getPhone());
+        }
+
+        if (requestParam.getMail() != null) {
+            user.setMail(requestParam.getMail());
+        }
+
+        // Note: Password update should be handled separately with encryption
+
+        // 3. Save(update)
+        queryService.save(user, true);
     }
 
 

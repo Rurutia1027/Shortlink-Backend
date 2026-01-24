@@ -15,6 +15,7 @@ import org.tus.shortlink.admin.entity.Group;
 import org.tus.shortlink.admin.entity.GroupUnique;
 import org.tus.shortlink.admin.remote.ShortLinkActualRemoteService;
 import org.tus.shortlink.admin.service.GroupService;
+import org.tus.shortlink.base.biz.UserContext;
 import org.tus.shortlink.base.common.convention.exception.ClientException;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.common.convention.result.Result;
@@ -51,8 +52,11 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public void saveGroup(String groupName) {
-        throw new ServiceException("UserContext not implemented. Please use saveGroup" +
-                "(username, groupName");
+        String username = UserContext.getUsername();
+        if (username != null && username.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first");
+        }
+        saveGroup(username, groupName);
     }
 
     @Override
@@ -123,15 +127,16 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public List<ShortLinkGroupRespDTO> listGroup() {
-        // TODO: Get username from UserContext
-        // String username = UserContext.getUsername()
-        throw new ServiceException("UserContext not implemented. Please implement " +
-                "UserContext.getUsername()");
+        String username = UserContext.getUsername();
+        if (username == null || username.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first.");
+        }
+        return listGroup(username);
     }
 
     /**
      * List groups for a specific username
-     * This is a helper method that can be called once UserContext is implemented
+     * Internal helper method
      */
     public List<ShortLinkGroupRespDTO> listGroup(String username) {
         // 1. Query user's groups
@@ -185,15 +190,16 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void updateGroup(ShortLinkGroupUpdateReqDTO requestParam) {
-        // TODO: Get username from UserContext
-        // String username = UserContext.getUsername()
-        throw new ServiceException("UserContext not implemented. Please implement " +
-                "UserContext.getUsername()");
+        String username = UserContext.getUsername();
+        if (username == null || username.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first.");
+        }
+        updateGroup(username, requestParam);
     }
 
     /**
      * Update group for a specific username
-     * This is a higher method that can be called once UserContext is implemented
+     * Internal helper method
      */
     @Transactional
     public void updateGroup(String username, ShortLinkGroupUpdateReqDTO requestParam) {
@@ -233,18 +239,19 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void deleteGroup(String gid) {
-        // TODO: Get username from UserContext
-        // String username = UserContext.getUsername();
-        throw new ServiceException("UserContext not implemented. Please implement " +
-                "UserContext.getUsername()");
+        String username = UserContext.getUsername();
+        if (username == null || username.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first.");
+        }
+        deleteGroup(username, gid);
     }
 
     /**
      * Delete group for a specific username
-     * This is a helper method that can be called once UserContext is implemented
+     * Internal helper method
      */
     @Transactional
-    public void deleteGroup(String username, String gid) {
+    private void deleteGroup(String username, String gid) {
         // 1. Query existing group
         HqlQueryBuilder builder = new HqlQueryBuilder();
         String hql = builder
@@ -282,15 +289,16 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void sortGroup(List<ShortLinkGroupSortReqDTO> requestParam) {
-        // TODO: Get username from UserContext
-        // String username = UserContext.getUsername();
-        throw new ServiceException("UserContext not implemented. Please implement " +
-                "UserContext.getUsername()");
+        String username = UserContext.getUsername();
+        if (username == null || username.isBlank()) {
+            throw new ServiceException("User not authenticated. Please login first.");
+        }
+        sortGroup(username, requestParam);
     }
 
     /**
      * Sort groups for a specific username
-     * This is a helper method that can be called once UserContext is implemented
+     * Internal helper method
      */
     @Transactional
     public void sortGroup(String username, List<ShortLinkGroupSortReqDTO> requestParam) {
