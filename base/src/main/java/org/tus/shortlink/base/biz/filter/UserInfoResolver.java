@@ -29,5 +29,5 @@ public interface UserInfoResolver {
      * @param token authentication token (JWT, UUID, or session ID)
      * @return UserInfoDTO if found, null otherwise
      */
-    UserInfoDTO resolverUserInfo(String token);
+    UserInfoDTO resolveUserInfo(String token);
 }

@@ -52,7 +52,7 @@ public class UserContextFilter implements Filter {
 
             if (StrUtil.isNotBlank(token)) {
                 // 2. Resolver user information using strategy
-                UserInfoDTO userInfo = userInfoResolver.resolverUserInfo(token);
+                UserInfoDTO userInfo = userInfoResolver.resolveUserInfo(token);
 
                 if (userInfo != null) {
                     // 3. Set user to context
