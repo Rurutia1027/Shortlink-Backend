@@ -39,20 +39,40 @@ jobs:
         run: |
           mvn verify -DskipTests  # Skip unit tests, run only integration tests (*IT.java)
 
+      - name: List Test Results (Debug)
+        if: always()
+        run: |
+          echo "Checking for test results..."
+          echo "=== Failsafe reports directories ==="
+          find . -type d -name "failsafe-reports" 2>/dev/null | head -10 || echo "No failsafe-reports directories found"
+          echo ""
+          echo "=== Test XML files ==="
+          find . -type f -path "*/target/failsafe-reports/TEST-*.xml" 2>/dev/null | head -20 || echo "No TEST-*.xml files found"
+          echo ""
+          echo "=== Sample failsafe-reports contents ==="
+          find . -type d -name "failsafe-reports" -exec ls -la {} \; 2>/dev/null | head -30 || echo "No contents found"
+
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: integration-test-results
           path: |
             **/target/failsafe-reports/**
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
+        if: always() && github.event_name == 'push'
+        continue-on-error: true
         with:
           files: |
             **/target/failsafe-reports/TEST-*.xml
           check_name: Integration Test Results
           comment_mode: off
+          report_individual_runs: false
+          deduplicate_classes_by_file_name: false
+          action_fail: false
+          action_fail_on_inconclusive: false
