@@ -51,6 +51,7 @@
 
         <!-- Test -->
         <jsoup.version>1.15.3</jsoup.version>
+        <jmh.version>1.37</jmh.version>
     </properties>
 
     <!-- =========================
@@ -226,7 +227,6 @@
             </plugins>
         </pluginManagement>
     </build>
-
 
     <profiles>
         <profile>
