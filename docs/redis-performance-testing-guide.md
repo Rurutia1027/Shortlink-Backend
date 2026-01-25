@@ -184,14 +184,59 @@ config.useSingleServer()
 .setTimeout(3000); 
 ```
 
-### Test Parameters 
-
+### Test Parameters
 Adjust based on environment: 
 - **Thread count**: Start with 50, increase to 200-500 for stress 
 - **Duration**: 30s for quick tests, 5-10 min for stability 
 - **Operation mix**: Adjust GET/SET ratio based on use case 
 
-
 ## Reporting 
 Performance test results include: 
+
+**Environment metadata**: CPU cores, memory, Redis config 
+**Workload definition**: Thread, duration, operation mix 
+**Result summary**: 
+- Throughput (ops/s)
+- Latency histogram (P50/P95/P99)
+- Error rate 
+- Total operations
+
+Results are: 
+- Printed to console 
+- Uploaded as artifacts in CI 
+- Can be exported to JSON/CSV for analysis 
+
+## Best Practices 
+- **Warm-up**: Always include warm-up period before measures 
+- **Multiple runs**: Run 3-5 times and average results 
+- **Isolated environment**: Run on dedicated machine/container 
+- **Baseline first**: Establish baseline before optimization 
+- **Document changes**: Record any config changes between runs 
+- **Compare environments8*: Validate in both local and k8s-lik environments
+
+## Troubleshooting 
+### Tests not running 
+- Check if tests are disabled (`@Disbled` annotation)
+- Verify Redis is accessible 
+- Check Testcontainers Docker is running 
+- Review Maven test output for errors 
+
+### High latency?
+- Check network latency to Redis 
+- Review connection pool settings 
+- Check for GC pauses (add GC logging)
+- Verify Redis server performance 
+
+### High error rate?
+- Check connection pool exhaustion 
+- Review timeout settings 
+- Check Redis server capacity 
+- Verify network stability 
+
+## Next Steps
+- Run baseline performance tests 
+- Compare results against targets 
+- Tune configuration if needed 
+- Re-run and validate improvements 
+- Document final performance numbers 
 
