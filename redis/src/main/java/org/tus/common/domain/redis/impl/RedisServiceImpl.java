@@ -1,6 +1,5 @@
 package org.tus.common.domain.redis.impl;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.redisson.api.RedissonClient;
 
@@ -9,13 +8,13 @@ import org.redisson.api.RedissonClient;
  */
 @Getter
 public class RedisServiceImpl {
-    private final RedissonDistributedLockServiceImpl distributedLockService;
-    private final RedissonBloomFilterServiceImpl bloomFilterService;
-    private final RedissonCacheServiceImpl cacheService;
+    private final RedissonDistributedLockService distributedLockService;
+    private final RedissonBloomFilterService bloomFilterService;
+    private final RedissonCacheService cacheService;
 
     public RedisServiceImpl(RedissonClient redissonClient) {
-        this.distributedLockService = new RedissonDistributedLockServiceImpl(redissonClient);
-        this.bloomFilterService = new RedissonBloomFilterServiceImpl(redissonClient);
-        this.cacheService = new RedissonCacheServiceImpl(redissonClient);
+        this.distributedLockService = new RedissonDistributedLockService(redissonClient);
+        this.bloomFilterService = new RedissonBloomFilterService(redissonClient);
+        this.cacheService = new RedissonCacheService(redissonClient);
     }
 }
