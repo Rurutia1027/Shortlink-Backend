@@ -1,14 +1,18 @@
-name: Short link Backend Build and Docker Images Generated Release
+name: Release (Build and Publish Docker Images)
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_run:
+    workflows: ["K8s Cluster Deployment"]
+    types:
+      - completed
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build-and-publish:
+    name: Build and Publish Docker Images
     runs-on: ubuntu-latest
+    # Only proceed if K8s deployment succeeded (or manual trigger)
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
 
     steps:
       # 1️⃣ Checkout code
@@ -31,9 +35,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      # 4️⃣ Build JAR with docker-build profile
+      # 4️⃣ Build JAR with docker-build profile (skip all tests)
       - name: Build Shortlink JAR for Docker
-        run: mvn clean package -Pdocker-build -DskipTests
+        run: mvn clean package -Pdocker-build -DskipTests -DskipITs
 
       # 5️⃣ Set up QEMU for multi-arch build
       - name: Set up QEMU
