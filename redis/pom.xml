@@ -31,10 +31,22 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Unit tests (per redis-common-module-pain point-solution-test plan) -->
+        <!-- Unit tests (per redis-common-module-painpoint-solution-testplan) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Integration tests with Testcontainers (per redis-common-module-painpoint-solution-testplan §3.2) -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
