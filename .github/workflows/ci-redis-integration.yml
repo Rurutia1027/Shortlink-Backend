@@ -43,7 +43,9 @@ jobs:
 
       - name: Run Redis Integration Tests
         run: |
-          mvn verify -pl redis -DskipTests  # Skip unit tests, run only *IT.java tests
+          # Skip unit tests (Surefire) but run integration tests (Failsafe)
+          # Use -DskipTests for Surefire, but explicitly run Failsafe goals without skip flag
+          mvn failsafe:integration-test failsafe:verify -pl redis -Dsurefire.skip=true
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
