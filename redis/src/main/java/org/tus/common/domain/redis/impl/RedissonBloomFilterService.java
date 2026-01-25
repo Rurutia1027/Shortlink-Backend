@@ -33,7 +33,7 @@ public class RedissonBloomFilterService implements BloomFilterService {
         if (element == null) {
             return false;
         }
-        return (filterName).contains(element);
+        return filter(filterName).contains(element);
     }
 
     @Override
