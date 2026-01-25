@@ -1,17 +1,16 @@
-name: Integration Tests
+name: Unit Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:  # Allow manual trigger
+    branches: [ "main", "develop" ]
 
 jobs:
-  integration-tests:
-    name: Run Integration Tests
+  unit-tests:
+    name: Run Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Integration tests take longer due to containers
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -31,35 +30,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Build Project (Skip Tests)
+      - name: Run Unit Tests (Surefire)
         run: |
-          mvn clean compile -DskipTests -DskipITs
-
-      - name: Run Integration Tests (Failsafe)
-        run: |
-          mvn verify -DskipTests  # Skip unit tests, run only integration tests (*IT.java)
+          mvn clean test -DskipITs
 
       - name: List Test Results (Debug)
         if: always()
         run: |
           echo "Checking for test results..."
-          echo "=== Failsafe reports directories ==="
-          find . -type d -name "failsafe-reports" 2>/dev/null | head -10 || echo "No failsafe-reports directories found"
+          echo "=== Surefire reports directories ==="
+          find . -type d -name "surefire-reports" 2>/dev/null | head -10 || echo "No surefire-reports directories found"
           echo ""
           echo "=== Test XML files ==="
-          find . -type f -path "*/target/failsafe-reports/TEST-*.xml" 2>/dev/null | head -20 || echo "No TEST-*.xml files found"
+          find . -type f -path "*/target/surefire-reports/TEST-*.xml" 2>/dev/null | head -20 || echo "No TEST-*.xml files found"
           echo ""
-          echo "=== Sample failsafe-reports contents ==="
-          find . -type d -name "failsafe-reports" -exec ls -la {} \; 2>/dev/null | head -30 || echo "No contents found"
+          echo "=== Sample surefire-reports contents ==="
+          find . -type d -name "surefire-reports" -exec ls -la {} \; 2>/dev/null | head -30 || echo "No contents found"
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
         continue-on-error: true
         with:
-          name: integration-test-results
+          name: unit-test-results
           path: |
-            **/target/failsafe-reports/**
+            **/target/surefire-reports/**
           retention-days: 7
           if-no-files-found: ignore
 
@@ -69,8 +64,8 @@ jobs:
         continue-on-error: true
         with:
           files: |
-            **/target/failsafe-reports/TEST-*.xml
-          check_name: Integration Test Results
+            **/target/surefire-reports/TEST-*.xml
+          check_name: Unit Test Results
           comment_mode: off
           report_individual_runs: false
           deduplicate_classes_by_file_name: false

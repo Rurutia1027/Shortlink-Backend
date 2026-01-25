@@ -1,32 +1,22 @@
-name: Short link Backend Build and K8s Cluster Deployment
+name: K8s Cluster Deployment
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  build-and-k8s-deploy:
+  k8s-deploy:
+    name: Deploy to K8s Cluster
     runs-on: ubuntu-latest
+    # Note: This job should run after Unit Tests and Integration Tests pass
+    # The dependency is enforced via branch protection rules or manual verification
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Cache Maven packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
 
       - name: Install kubectl
         run: |
@@ -45,7 +35,7 @@ jobs:
         run: |
           bash bin/k8s-up-all.sh
           
-          # Deploy Postgres *2 and Redis *1 for Project Mvn Verify
+          # Deploy Postgres *2 and Redis *1
           # TODO: here we gonna add shortlink-service & shortlink-admin yamls to prod folder
           # then here we gonna setup prod env with monitor, istio, admin and shortlink-svc ready 
           # TODO: kubectl apply -k k8s/overlays/prod/
@@ -69,10 +59,6 @@ jobs:
       - name: Port-forward PostgreSQL and Redis
         run: |
           bash bin/port-forward.sh
-
-      - name: Verify Project
-        run: |
-          mvn clean verify -DskipTest
 
       - name: Shutdown Kind Cluster
         if: always()
