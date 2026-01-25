@@ -1,17 +1,23 @@
-name: Integration Tests
+name: Redis Integration Tests
 
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'redis/**'
+      - '.github/workflows/ci-redis-integration.yml'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'redis/**'
+      - '.github/workflows/ci-redis-integration.yml'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  integration-tests:
-    name: Run Integration Tests
+  redis-integration-tests:
+    name: Redis Module Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Integration tests take longer due to containers
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -31,21 +37,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Build Project (Skip Tests)
+      - name: Build Redis Module (Skip Tests)
         run: |
-          mvn clean compile -DskipTests -DskipITs
+          mvn clean compile -pl redis -am -DskipTests -DskipITs
 
-      - name: Run Integration Tests (Failsafe)
+      - name: Run Redis Integration Tests
         run: |
-          mvn verify -DskipTests  # Skip unit tests, run only integration tests (*IT.java)
+          mvn verify -pl redis -DskipTests  # Skip unit tests, run only *IT.java tests
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: integration-test-results
+          name: redis-integration-test-results
           path: |
-            **/target/failsafe-reports/**
+            redis/target/failsafe-reports/**
           retention-days: 7
 
       - name: Publish Test Results
@@ -53,6 +59,6 @@ jobs:
         if: always()
         with:
           files: |
-            **/target/failsafe-reports/TEST-*.xml
-          check_name: Integration Test Results
+            redis/target/failsafe-reports/TEST-*.xml
+          check_name: Redis Integration Test Results
           comment_mode: off
