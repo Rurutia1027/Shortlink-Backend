@@ -9,10 +9,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.persistence.QueryService;
+import org.tus.common.domain.redis.BloomFilterService;
+import org.tus.common.domain.redis.CacheService;
+import org.tus.common.domain.redis.DistributedLockService;
 import org.tus.shortlink.admin.entity.User;
 import org.tus.shortlink.admin.service.GroupService;
 import org.tus.shortlink.admin.service.UserService;
 import org.tus.shortlink.base.biz.UserContext;
+import org.tus.shortlink.base.common.constant.RedisCacheConstant;
 import org.tus.shortlink.base.common.convention.exception.ClientException;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.common.enums.UserErrorCodeEnum;
@@ -22,6 +26,7 @@ import org.tus.shortlink.base.dto.req.UserUpdateReqDTO;
 import org.tus.shortlink.base.dto.resp.UserLoginRespDTO;
 import org.tus.shortlink.base.dto.resp.UserRespDTO;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,17 +40,16 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
-    // TODO: Integrate Redis Bloom Filter for username cache penetration protection
-    // private final BloomFilterService bloomFilterService;
-
-    // TODO: Integrate Redisson for distributed lock
-    // private final DistributedLockService lockService;
-
-    // TODO: Integrate Redis Cache Service for session management
-    // private final CacheService cacheService;
-
     private final QueryService queryService;
     private final GroupService groupService;
+    private final DistributedLockService distributedLockService;
+    private final BloomFilterService bloomFilterService;
+    private final CacheService cacheService;
+
+    /**
+     * Bloom filter name for username cache penetration protection
+     */
+    private static final String USERNAME_BLOOM_FILTER_NAME = "username-filter";
 
     @Override
     public UserRespDTO getUserByUsername(String username) {
@@ -86,15 +90,13 @@ public class UserServiceImpl implements UserService {
             return true; // Empty username is considered as "exists" (invalid)
         }
 
-        // TODO: Check Bloom Filter first for cache penetration protection
-        // if (bloomFilterService.contains("username-filter", username)) {
-        //      // Bloom Filter indicates username might exist, check database
-        //      return !checkUsernameInDatabase(username);
-        // }
+        // Check Bloom Filter first for cache penetration protection
+        if (bloomFilterService.contains(USERNAME_BLOOM_FILTER_NAME, username)) {
+            return !checkUsernameInDatabase(username);
+        }
+
         // Bloom Filter indicates username definitely doesn't exist
-        // return true;
-        // For now, check database directly
-        return !checkUsernameInDatabase(username);
+        return true;
     }
 
     /**
@@ -133,33 +135,28 @@ public class UserServiceImpl implements UserService {
             throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
         }
 
-        // TODO: Acquire distributed lock to prevent concurrent registration
-        // String lockKey = RedisCacheConstant.LOCK_USER_REGISTER_KEY + requestParam
-        // .getUsername()
-        //      lockService.executeWithLock(lockKey, () -> {
-        //     // Register logic here
-        // });
-        // For now, proceed without lock (will be added when Redis module is ready)
-        try {
-            // 2. Create user entity
-            User user = User.builder()
-                    .username(requestParam.getUsername())
-                    .password(requestParam.getPassword()) // TODO: Encrypt password before saving
-                    .realName(requestParam.getRealName())
-                    .phone(requestParam.getPhone())
-                    .mail(requestParam.getMail())
-                    .build();
+        // Acquire distributed lock to prevent concurrent registration
+        String lockKey = RedisCacheConstant.LOCK_USER_REGISTER_KEY + requestParam.getUsername();
+        distributedLockService.executeWithLock(lockKey, () -> {
+            try {
+                // 2. Create user entity
+                User user = User.builder()
+                        .username(requestParam.getUsername())
+                        .password(requestParam.getPassword()) // TODO: Encrypt password before saving
+                        .realName(requestParam.getRealName())
+                        .phone(requestParam.getPhone())
+                        .mail(requestParam.getMail())
+                        .build();
 
-            // 3. Save user
-            queryService.save(user);
+                // 3. Save user
+                queryService.save(user);
 
-            // 4. Create default group for the user
-            groupService.saveGroup(requestParam.getUsername(), "默认分组");
+                // 4. Create default group for the user
+                groupService.saveGroup(requestParam.getUsername(), "default");
 
-            // TODO: Add username to Bloom Filter after successful registration
-            // bloomFilterService.add("username-filter", requestParam.getUsername());
+                // Add username to Bloom Filter after successful registration
+                bloomFilterService.add(USERNAME_BLOOM_FILTER_NAME, requestParam.getUsername());
         } catch (HibernateException e) {
-
             // Check if it's a unique constraint violation
             if (e instanceof ConstraintViolationException ||
                     e.getCause() instanceof ConstraintViolationException ||
@@ -178,7 +175,7 @@ public class UserServiceImpl implements UserService {
             log.error("Unexpected error during user registration: {}", requestParam.getUsername(), e);
             throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
         }
-
+        }); // End of distributed lock execution
     }
 
     @Override
@@ -294,31 +291,27 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = results.get(0);
-        // TODO: Check Redis cache for existing login session
-        // Map<Object, Object> hasLoginMap = cacheService.getHash(USER_LOGIN_KEY + requestParam.getUsername());
-        // if (hasLoginMap != null && !hasLoginMap.isEmpty()) {
-        //     // Extend session expiration
-        //     cacheService.expire(USER_LOGIN_KEY + requestParam.getUsername(), Duration.ofMinutes(30));
-        //     String token = hasLoginMap.keySet().stream()
-        //             .findFirst()
-        //             .map(Object::toString)
-        //             .orElseThrow(() -> new ClientException("用户登录错误"));
-        //     return new UserLoginRespDTO(token);
-        // }
 
-        // For now, always create new session
-        // TODO: Store login session in Redis
-        // Hash structure:
-        // Key: login_username
-        // Value:
-        //   Key: token identifier
-        //   Val: JSON string (user information)
+        // Check Redis cache for existing login session
+        String loginKey = RedisCacheConstant.USER_LOGIN_KEY + requestParam.getUsername();
+        Map<String, String> hasLoginMap = cacheService.hgetAll(loginKey);
+        if (hasLoginMap != null && !hasLoginMap.isEmpty()) {
+            // Extend session expiration
+            cacheService.expire(loginKey, Duration.ofMinutes(30));
+            String token = hasLoginMap.keySet().stream()
+                    .findFirst()
+                    .orElseThrow(() -> new ClientException("User login error!"));
+            return UserLoginRespDTO.builder()
+                    .token(token)
+                    .build();
+        }
+
+        // Create new session
         String uuid = UUID.randomUUID().toString();
-
-
-        // TODO: Store in Redis cache
-        // cacheService.setHash(USER_LOGIN_KEY + requestParam.getUsername(), uuid, JSON.toJSONString(user));
-        // cacheService.expire(USER_LOGIN_KEY + requestParam.getUsername(), Duration.ofMinutes(30));
+        // Store login session in Redis
+        // Hash structure: Key: login_username, Value: {token: JSON(user info)}
+        cacheService.hset(loginKey, uuid, user);
+        cacheService.expire(loginKey, Duration.ofMinutes(30));
 
         return UserLoginRespDTO.builder()
                 .token(uuid)
@@ -331,12 +324,10 @@ public class UserServiceImpl implements UserService {
             return false;
         }
 
-        // TODO: Check Redis cache for login session
-        // Object sessionData = cacheService.getHashValue(USER_LOGIN_KEY + username, token);
-        // return sessionData != null;
-
-        // For now, return false (will be implemented when Redis module is ready)
-        return false;
+        // Check Redis cache for login session
+        String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
+        String sessionData = cacheService.hget(loginKey, token, String.class);
+        return sessionData != null;
     }
 
     @Override
@@ -345,16 +336,14 @@ public class UserServiceImpl implements UserService {
             throw new ClientException("User Token not exist or user not even registered");
         }
 
-        // TODO: Check if user is logged in via Redis cache
-        // if (checkLogin(username, token)) {
-        //     cacheService.delete(USER_LOGIN_KEY + username);
-        //     return;
-        // }
-
-        // FOr now, throw exception (will be implemented when Redis module is ready)
+        // Check if user is logged in via Redis cache
+        if (checkLogin(username, token)) {
+            String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
+            cacheService.delete(loginKey);
+            return;
+        }
         throw new ClientException("User Token not exist or user not event login!");
     }
-
 
     /**
      * Convert User entity to UserRespDTO

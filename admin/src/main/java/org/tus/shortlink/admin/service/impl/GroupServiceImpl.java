@@ -11,11 +11,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.persistence.QueryService;
+import org.tus.common.domain.redis.BloomFilterService;
+import org.tus.common.domain.redis.DistributedLockService;
 import org.tus.shortlink.admin.entity.Group;
 import org.tus.shortlink.admin.entity.GroupUnique;
 import org.tus.shortlink.admin.remote.ShortLinkActualRemoteService;
 import org.tus.shortlink.admin.service.GroupService;
 import org.tus.shortlink.base.biz.UserContext;
+import org.tus.shortlink.base.common.constant.RedisCacheConstant;
 import org.tus.shortlink.base.common.convention.exception.ClientException;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.common.convention.result.Result;
@@ -41,11 +44,18 @@ import java.util.Optional;
 public class GroupServiceImpl implements GroupService {
     private final QueryService queryService;
     private final ShortLinkActualRemoteService shortLinkActualRemoteService;
+    private DistributedLockService distributedLockService;
+    private BloomFilterService bloomFilterService;
 
     // TODO: Implement UserContext to get current username
     // For now, we'll need to pass username as parameter or implement UserContext
     // TODO: Implement distributed lock with Redisson
     // private static final String LOCK_GROUP_CREATE_KEY = "lock_group_create_%s"
+
+    /**
+     * Bloom filter name for GID cache penetration protection
+     */
+    private static final String GID_BLOOM_FILTER_NAME = "gid-register-filter";
 
     @Value("${shortlink.group.max-num:10}")
     private Integer groupMaxNum;
@@ -59,70 +69,70 @@ public class GroupServiceImpl implements GroupService {
         saveGroup(username, groupName);
     }
 
+    // TODO: Optimize locking strategy by narrowing the distributed lock
+    // to the critical section: gid generation and DB save
     @Override
     public void saveGroup(String username, String groupName) {
-        // TODO: Implement distributed lock with Redisson
-        // RLock lock = redissonClient.getLock(String.format(LOCK_GROUP_CREATE_KEY,
-        // username));
-        // lock.lock();
-        // try {
-        //     ...
-        // } finally {
-        //    lock.unlock()
-        // }
+        // Use distributed lock to prevent concurrent group creation for the same user
+        String lockKey = String.format(RedisCacheConstant.LOCK_GROUP_CREATE_KEY, username);
+        distributedLockService.executeWithLock(lockKey, () -> {
+            // 1. Check if user has reached max number of groups
+            HqlQueryBuilder builder = new HqlQueryBuilder();
+            String countHql = builder
+                    .fromAs(Group.class, "g")
+                    .selectCount()
+                    .eq("g.username", username)
+                    .and()
+                    .isNull("g.deleted")
+                    .build();
+            Map<String, Object> countParams = builder.getInjectionParameters();
+            builder.clear();
 
-        // 1. Check if user has reached max number of groups
-        HqlQueryBuilder builder = new HqlQueryBuilder();
-        String countHql = builder
-                .fromAs(Group.class, "g")
-                .selectCount()
-                .eq("g.username", username)
-                .and()
-                .isNull("g.deleted")
-                .build();
-        Map<String, Object> countParams = builder.getInjectionParameters();
-        builder.clear();
+            Long count = (Long) queryService.query(countHql, countParams).get(0);
+            if (count != null && count >= groupMaxNum) {
+                throw new ClientException(String.format("Exceeded max group number: %d",
+                        groupMaxNum));
+            }
 
-        Long count = (Long) queryService.query(countHql, countParams).get(0);
-        if (count != null && count >= groupMaxNum) {
-            throw new ClientException(String.format("Exceeded maximum group number %d",
-                    groupMaxNum));
-        }
+            // 2. Generate unique gid with retry
+            int retryCount = 0;
+            int maxRetries = 10;
+            String gid = null;
 
-        // 2. Generate unique gid with retry
-        int retryCount = 0;
-        int maxRetries = 10;
-        String gid = null;
+            while (retryCount < maxRetries) {
+                gid = saveGroupUniqueReturnGid();
+                if (gid != null && !gid.isEmpty()) {
+                    // 3. Here we got successful generated current user scope unique group
+                    // id : gid, take it create group entity
+                    Group group = Group.builder()
+                            .gid(gid)
+                            .sortOrder(0)
+                            .username(username)
+                            .build();
+                    group.setName(groupName); // name is from parent class unique named artifact
 
-        while (retryCount < maxRetries) {
-            gid = saveGroupUniqueReturnedGid();
-            if (gid != null && !gid.isEmpty()) {
-                // 3. Create Group Entity
-                Group group = Group.builder()
-                        .gid(gid)
-                        .sortOrder(0)
-                        .username(username)
-                        .build();
-                group.setName(groupName); // name is coming from parent class
-                // UniqueNamedArtifact
-                try {
-                    queryService.save(group);
-                    // TODO: add to Bloom Filter
-                    // gidRegisterCachePenetrationBloomFilter.add(gid)
-                } catch (HibernateException e) {
-                    // If save fails, retry with new gid
-                    log.warn("Failed to save group with gid: {}, retrying ...", gid, e);
-                    gid = null;
+                    try {
+                        queryService.save(group);
+                        // here we add bloom filter to protect db avoid db penetration
+                        bloomFilterService.add(GID_BLOOM_FILTER_NAME, gid);
+                        break;
+                    } catch (HibernateException e) {
+                        // if save fails, retry with new gid
+                        log.warn("Failed to save group with gid: {}, retrying ...", gid, e);
+                        gid = null; // reset gid
+                        retryCount++;
+                    }
+                } else {
+                    // generated gid duplicated, retry
                     retryCount++;
                 }
-            } else {
-                retryCount++;
             }
-        }
 
-        if (gid == null || gid.isEmpty()) {
-            throw new ServiceException("Request to generate unique Group ID too frequently!");
-        }
+            if (gid == null || gid.isEmpty()) {
+                // tried times > max limitation, still no valid gid got,throw exception
+                throw new ServiceException("Gid generation request too frequent!");
+            }
+        }); // End of distributed lock execution
     }
 
     @Override
@@ -348,13 +358,15 @@ public class GroupServiceImpl implements GroupService {
     /**
      * Save GroupUnique and return gid if successful, null if duplicate
      */
-    private String saveGroupUniqueReturnedGid() {
+    private String saveGroupUniqueReturnGid() {
         String gid = RandomGenerator.generateRandom();
+        // Check Bloom Filter first for cache penetration protection
+        // If Bloom Filter indicates gid might exist, skip to avoid unnecessary DB query
+        if (bloomFilterService.contains(GID_BLOOM_FILTER_NAME, gid)) {
+            // Bloom Filter indicates gid might exist, skip this gid and re-generate a new one
+            return null;
+        }
 
-        // TODO: Check Bloom Filter first
-        // if (gidRegisterCachePenetrationBloomFilter.contains(gid)) {
-        //     return null;
-        // }
         GroupUnique groupUnique = GroupUnique.builder()
                 .gid(gid)
                 .build();

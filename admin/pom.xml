@@ -45,6 +45,14 @@
             <scope>compile</scope>
         </dependency>
 
+        <!-- Redis common module -->
+        <dependency>
+            <groupId>org.tus.shortlink</groupId>
+            <artifactId>common-redis</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+
         <!-- Test Containers -->
         <dependency>
             <groupId>org.testcontainers</groupId>
