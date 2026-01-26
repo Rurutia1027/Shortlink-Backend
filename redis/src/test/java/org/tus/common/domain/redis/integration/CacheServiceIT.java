@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SpringJUnitConfig(classes = {RedisTestConfig.class})
 @DisplayName("CacheService Integration Tests")
-class CacheServiceIT {
+public class CacheServiceIT {
     @Autowired
     private RedisService redisService;
 
