@@ -11,6 +11,14 @@ spec:
   http:
     - match:
         - uri:
+            prefix: /api/shortlink/admin
+      route:
+        - destination:
+            host: admin.shortlink.svc.cluster.local
+            port:
+              number: 8082 # this port should be the port declared in the associated service
+    - match:
+        - uri:
             prefix: /api/shortlink
       route:
         - destination:

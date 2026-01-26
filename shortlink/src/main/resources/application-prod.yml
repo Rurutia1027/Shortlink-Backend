@@ -23,7 +23,8 @@ spring:
     redis:
       host: ${REDIS_HOST:redis.shortlink.svc.cluster.local}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:123456}
+      # Password is optional - if REDIS_PASSWORD is empty or not set, no password will be used
+      password: ${REDIS_PASSWORD:}
       lettuce:
         cluster:
           refresh:

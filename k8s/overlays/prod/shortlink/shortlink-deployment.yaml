@@ -29,3 +29,10 @@ spec:
               value: admin
             - name: SHORTLINK_DB_PASSWORD
               value: admin
+            - name: REDIS_HOST
+              value: redis.shortlink.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            # Set REDIS_PASSWORD to empty string if Redis has no password configured
+            - name: REDIS_PASSWORD
+              value: ""
