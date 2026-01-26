@@ -80,7 +80,7 @@ public class LatencyStats {
     }
 
     public void reset() {
-        Arrays.stream(latencies).forEach(AtomicLong::set);
+        Arrays.stream(latencies).forEach(al -> al.set(0));
         totalOps.set(0);
         errors.set(0);
     }
