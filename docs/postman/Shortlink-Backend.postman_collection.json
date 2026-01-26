@@ -134,12 +134,12 @@
           ]
         },
         {
-          "name": "Has Username (GET /api/shortlink/admin/v1/user/has-username)",
+          "name": "Is Username Valid For Registration (GET /api/shortlink/admin/v1/user/isUsernameValidForRegistration)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/user/has-username?username={{admin_username}}",
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/user/isUsernameValidForRegistration?username={{admin_username}}",
               "host": [
                 "{{admin_base_url}}"
               ],
@@ -149,7 +149,7 @@
                 "admin",
                 "v1",
                 "user",
-                "has-username"
+                "isUsernameValidForRegistration"
               ],
               "query": [
                 {
@@ -168,7 +168,12 @@
                   "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
                   "let json = pm.response.json();",
                   "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('data is boolean', function () { pm.expect(typeof json.data).to.eql('boolean'); });"
+                  "pm.test('data is boolean', function () { pm.expect(typeof json.data).to.eql('boolean'); });",
+                  "pm.test('true means username is valid for registration', function () {",
+                  "  if (json.data === true) {",
+                  "    pm.expect(json.data).to.be.true;",
+                  "  }",
+                  "});"
                 ]
               }
             }

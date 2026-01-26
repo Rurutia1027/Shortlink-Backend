@@ -16,9 +16,9 @@ import org.tus.shortlink.admin.entity.User;
 import org.tus.shortlink.admin.service.GroupService;
 import org.tus.shortlink.admin.service.UserService;
 import org.tus.shortlink.base.biz.UserContext;
+import org.tus.shortlink.base.common.constant.RedisCacheConstant;
 import org.tus.shortlink.base.common.convention.exception.ClientException;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
-import org.tus.shortlink.base.common.constant.RedisCacheConstant;
 import org.tus.shortlink.base.common.enums.UserErrorCodeEnum;
 import org.tus.shortlink.base.dto.req.UserLoginReqDTO;
 import org.tus.shortlink.base.dto.req.UserRegisterReqDTO;
@@ -301,6 +301,14 @@ public class UserServiceImpl implements UserService {
         }
 
         User user = results.get(0);
+        UserRespDTO userInfoDTO = UserRespDTO.builder()
+                .id(user.getId())
+                .deletionTime(user.getDeletionTime())
+                .mail(user.getMail())
+                .phone(user.getPhone())
+                .realName(user.getRealName())
+                .username(user.getUsername())
+                .build();
 
         // Check Redis cache for existing login session
         String loginKey = RedisCacheConstant.USER_LOGIN_KEY + requestParam.getUsername();
@@ -310,9 +318,10 @@ public class UserServiceImpl implements UserService {
             cacheService.expire(loginKey, Duration.ofMinutes(30));
             String token = hasLoginMap.keySet().stream()
                     .findFirst()
-                    .orElseThrow(() -> new ClientException("用户登录错误"));
+                    .orElseThrow(() -> new ClientException("User login error"));
             return UserLoginRespDTO.builder()
                     .token(token)
+                    .userInfo(userInfoDTO)
                     .build();
         }
 
@@ -325,11 +334,12 @@ public class UserServiceImpl implements UserService {
         cacheService.expire(loginKey, Duration.ofMinutes(30));
 
         // Store reverse mapping: token -> username (for efficient token lookup in filter)
-        String tokenToUsernameKey = "short-link:token-to-username:" + uuid;
+        String tokenToUsernameKey = RedisCacheConstant.TOKEN_TO_USERNAME_KEY + uuid;
         cacheService.set(tokenToUsernameKey, requestParam.getUsername(), Duration.ofMinutes(30));
 
         return UserLoginRespDTO.builder()
                 .token(uuid)
+                .userInfo(userInfoDTO)
                 .build();
     }
 
