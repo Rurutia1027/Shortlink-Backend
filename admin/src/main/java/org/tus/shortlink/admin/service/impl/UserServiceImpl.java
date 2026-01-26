@@ -86,7 +86,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Boolean hasUsername(String username) {
+    public Boolean isUsernameValidForRegistration(String username) {
         if (username == null || username.isBlank()) {
             return true;  // Empty username is considered as "exists" (invalid)
         }
@@ -132,7 +132,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 1. Check if username exists
-        if (!hasUsername(requestParam.getUsername())) {
+        if (!isUsernameValidForRegistration(requestParam.getUsername())) {
             throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
         }
 

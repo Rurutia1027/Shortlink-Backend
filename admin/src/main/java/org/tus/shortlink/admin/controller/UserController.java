@@ -49,9 +49,9 @@ public class UserController {
     /**
      * Check if username exists
      */
-    @GetMapping("/has-username")
-    public Result<Boolean> hasUsername(@RequestParam("username") String username) {
-        return Results.success(userService.hasUsername(username));
+    @GetMapping("/isUsernameValidForRegistration")
+    public Result<Boolean> isUsernameValidForRegistration(@RequestParam("username") String username) {
+        return Results.success(userService.isUsernameValidForRegistration(username));
     }
 
     /**
