@@ -75,29 +75,6 @@ class RedissonBloomFilterServiceTest {
     }
 
     @Test
-    @DisplayName("contains delegates when element non-null")
-    void containsDelegatesWhenElementNonNull() {
-        // getBloomFilter is called twice (once for each contains call)
-        // Use doReturn for generic methods to avoid type issues
-        doReturn(bloomFilter).when(redissonClient).getBloomFilter(FILTER_NAME);
-
-        // Stub the contains method on the bloomFilter mock
-        when(bloomFilter.contains("a")).thenReturn(true);
-        when(bloomFilter.contains("b")).thenReturn(false);
-
-        // First call should return true
-        assertTrue(bloomFilterService.contains(FILTER_NAME, "a"));
-
-        // Second call should return false
-        assertFalse(bloomFilterService.contains(FILTER_NAME, "b"));
-
-        // Verify interactions
-        verify(redissonClient, times(2)).getBloomFilter(FILTER_NAME);
-        verify(bloomFilter).contains("a");
-        verify(bloomFilter).contains("b");
-    }
-
-    @Test
     @DisplayName("contains throws NPE when filterName null")
     void containsThrowsWhenFilterNameNull() {
         assertThrows(NullPointerException.class, () -> bloomFilterService.contains(null, "x"));

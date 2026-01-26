@@ -1,23 +1,42 @@
 package org.tus.shortlink.admin.filter;
 
+import com.alibaba.fastjson2.JSON;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.tus.common.domain.redis.CacheService;
+import org.tus.shortlink.admin.entity.User;
 import org.tus.shortlink.base.biz.UserInfoDTO;
 import org.tus.shortlink.base.biz.filter.UserInfoResolver;
+import org.tus.shortlink.base.common.constant.RedisCacheConstant;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for AdminUserInfoResolver.
  *
- * <p>Note: Currently, AdminUserInfoResolver returns null as Redis/JWT/Spring Security
- * integration is pending. These tests verify the current behavior and structure.
- * Once Redis/JWT/Spring Security are integrated, these tests should be updated.
+ * <p>Tests the Redis session lookup implementation using two-step lookup:
+ * 1. Token -> Username (reverse mapping)
+ * 2. Username -> User JSON (session hash)
  */
+@ExtendWith(MockitoExtension.class)
 @DisplayName("AdminUserInfoResolver Tests")
 class AdminUserInfoResolverTest {
 
-    private final AdminUserInfoResolver resolver = new AdminUserInfoResolver(null);
+    @Mock
+    private CacheService cacheService;
+
+    private AdminUserInfoResolver resolver;
+
+    @BeforeEach
+    void setUp() {
+        resolver = new AdminUserInfoResolver(cacheService);
+    }
 
     @Test
     @DisplayName("Should implement UserInfoResolver interface")
@@ -27,112 +46,173 @@ class AdminUserInfoResolverTest {
     }
 
     @Test
-    @DisplayName("Should return null when Redis module is not ready")
-    void testReturnsNullWhenNotImplemented() {
-        // Given
-        String token = "test-token-123";
-
-        // When
-        UserInfoDTO result = resolver.resolveUserInfo(token);
-
-        // Then
-        assertNull(result, "Should return null until Redis/JWT/Spring Security integration is complete");
-    }
-
-    @Test
-    @DisplayName("Should handle null token gracefully")
+    @DisplayName("Should return null when token is null")
     void testNullToken() {
         // When
         UserInfoDTO result = resolver.resolveUserInfo(null);
 
         // Then
         assertNull(result);
+        verifyNoInteractions(cacheService);
     }
 
     @Test
-    @DisplayName("Should handle empty token gracefully")
-    void testEmptyToken() {
+    @DisplayName("Should return null when token is blank")
+    void testBlankToken() {
         // Given
-        String token = "";
+        String token = "   ";
 
         // When
         UserInfoDTO result = resolver.resolveUserInfo(token);
 
         // Then
         assertNull(result);
+        verifyNoInteractions(cacheService);
     }
 
     @Test
-    @DisplayName("Should handle different token formats")
-    void testDifferentTokenFormats() {
-        // Test various token formats
-        String[] tokens = {
-                "uuid-token-123",
-                "jwt.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-                "session-id-abc123",
-                "Bearer token-value"
-        };
+    @SuppressWarnings("unchecked")
+    @DisplayName("Should return null when token-to-username mapping not found")
+    void testTokenToUsernameNotFound() {
+        // Given
+        String token = "invalid-token-123";
+        String tokenToUsernameKey = "short-link:token-to-username:" + token;
 
-        for (String token : tokens) {
-            // When
-            UserInfoDTO result = resolver.resolveUserInfo(token);
+        when(cacheService.get(eq(tokenToUsernameKey), eq(String.class))).thenReturn(null);
 
-            // Then
-            assertNull(result, "Should return null for token: " + token);
-        }
+        // When
+        UserInfoDTO result = resolver.resolveUserInfo(token);
+
+        // Then
+        assertNull(result);
+        verify(cacheService).get(eq(tokenToUsernameKey), eq(String.class));
+        verify(cacheService, never()).hget(anyString(), anyString(), any(Class.class));
     }
 
-    // TODO: Add tests when Redis integration is ready
-    // @Test
-    // @DisplayName("Should resolve user from Redis session")
-    // void testResolveFromRedisSession() {
-    //     // Given
-    //     String token = "redis-session-token";
-    //     UserInfoDTO expectedUser = UserInfoDTO.builder()
-    //             .userId("user-123")
-    //             .username("testuser")
-    //             .realName("Test User")
-    //             .build();
-    //
-    //     // When
-    //     UserInfoDTO result = resolver.resolveUserInfo(token);
-    //
-    //     // Then
-    //     assertEquals(expectedUser, result);
-    // }
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("Should return null when username found but session hash not found")
+    void testUsernameFoundButSessionNotFound() {
+        // Given
+        String token = "valid-token-123";
+        String username = "testuser";
+        String tokenToUsernameKey = "short-link:token-to-username:" + token;
+        String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
 
-    // TODO: Add tests when JWT integration is ready
-    // @Test
-    // @DisplayName("Should resolve user from JWT token")
-    // void testResolveFromJwtToken() {
-    //     // Given
-    //     String jwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
-    //     UserInfoDTO expectedUser = UserInfoDTO.builder()
-    //             .userId("user-123")
-    //             .username("testuser")
-    //             .realName("Test User")
-    //             .build();
-    //
-    //     // When
-    //     UserInfoDTO result = resolver.resolveUserInfo(jwtToken);
-    //
-    //     // Then
-    //     assertEquals(expectedUser, result);
-    // }
+        when(cacheService.get(eq(tokenToUsernameKey), eq(String.class))).thenReturn(username);
+        when(cacheService.hget(eq(loginKey), eq(token), any(Class.class))).thenReturn(null);
 
-    // TODO: Add tests when Spring Security integration is ready
-    // @Test
-    // @DisplayName("Should resolve user from SecurityContext")
-    // void testResolveFromSecurityContext() {
-    //     // Given
-    //     String token = "any-token";
-    //     // Setup SecurityContext with CustomUserDetails
-    //
-    //     // When
-    //     UserInfoDTO result = resolver.resolveUserInfo(token);
-    //
-    //     // Then
-    //     assertNotNull(result);
-    //     assertEquals("testuser", result.getUsername());
-    // }
+        // When
+        UserInfoDTO result = resolver.resolveUserInfo(token);
+
+        // Then
+        assertNull(result);
+        verify(cacheService).get(eq(tokenToUsernameKey), eq(String.class));
+        verify(cacheService).hget(eq(loginKey), eq(token), any(Class.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("Should return UserInfoDTO when token and session are valid")
+    void testResolveUserInfoSuccess() {
+        // Given
+        String token = "valid-token-123";
+        String username = "testuser";
+        String tokenToUsernameKey = "short-link:token-to-username:" + token;
+        String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
+
+        User user = User.builder()
+                .username(username)
+                .realName("Test User")
+                .build();
+        user.setId("user-123");  // Set ID as String after building
+        String userJson = JSON.toJSONString(user);
+
+        when(cacheService.get(eq(tokenToUsernameKey), eq(String.class))).thenReturn(username);
+        when(cacheService.hget(eq(loginKey), eq(token), any(Class.class))).thenReturn(userJson);
+
+        // When
+        UserInfoDTO result = resolver.resolveUserInfo(token);
+
+        // Then
+        assertNotNull(result);
+        assertEquals("user-123", result.getUserId());
+        assertEquals(username, result.getUsername());
+        assertEquals("Test User", result.getRealName());
+
+        verify(cacheService).get(eq(tokenToUsernameKey), eq(String.class));
+        verify(cacheService).hget(eq(loginKey), eq(token), any(Class.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("Should return null when user JSON is invalid")
+    void testInvalidUserJson() {
+        // Given
+        String token = "valid-token-123";
+        String username = "testuser";
+        String tokenToUsernameKey = "short-link:token-to-username:" + token;
+        String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
+        String invalidJson = "{invalid json}";
+
+        when(cacheService.get(eq(tokenToUsernameKey), eq(String.class))).thenReturn(username);
+        when(cacheService.hget(eq(loginKey), eq(token), any(Class.class))).thenReturn(invalidJson);
+
+        // When
+        UserInfoDTO result = resolver.resolveUserInfo(token);
+
+        // Then
+        assertNull(result);
+        verify(cacheService).get(eq(tokenToUsernameKey), eq(String.class));
+        verify(cacheService).hget(eq(loginKey), eq(token), any(Class.class));
+    }
+
+    @Test
+    @DisplayName("Should handle exception gracefully")
+    void testHandleException() {
+        // Given
+        String token = "test-token";
+        String tokenToUsernameKey = "short-link:token-to-username:" + token;
+
+        when(cacheService.get(eq(tokenToUsernameKey), eq(String.class)))
+                .thenThrow(new RuntimeException("Redis connection error"));
+
+        // When
+        UserInfoDTO result = resolver.resolveUserInfo(token);
+
+        // Then
+        assertNull(result);
+        verify(cacheService).get(eq(tokenToUsernameKey), eq(String.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("Should return null when user ID is null")
+    void testUserWithNullId() {
+        // Given
+        String token = "valid-token-123";
+        String username = "testuser";
+        String tokenToUsernameKey = "short-link:token-to-username:" + token;
+        String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
+
+        User user = User.builder()
+                .username(username)
+                .realName("Test User")
+                .build();
+        // ID is null by default
+        String userJson = JSON.toJSONString(user);
+
+        when(cacheService.get(eq(tokenToUsernameKey), eq(String.class))).thenReturn(username);
+        when(cacheService.hget(eq(loginKey), eq(token), any(Class.class))).thenReturn(userJson);
+
+        // When
+        UserInfoDTO result = resolver.resolveUserInfo(token);
+
+        // Then
+        assertNotNull(result);
+        assertNull(result.getUserId());  // Should handle null ID gracefully
+        assertEquals(username, result.getUsername());
+        assertEquals("Test User", result.getRealName());
+    }
+
 }
