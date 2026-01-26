@@ -30,13 +30,16 @@ import java.util.concurrent.TimeUnit;
  * <p>Measures single-operation latency distribution for GET/SET operations.</p>
  *
  * <p>Run with: java -jar target/benchmarks.jar CacheServiceBenchmark</p>
+ *
+ * This Benchmark requires prepare Redis Single server / Redis Cluster it is not setup via
+ * TestContainer.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(1)
+@Fork(0)  // Disable forking to avoid classpath issues; use 1+ for production benchmarks
 public class CacheServiceBenchmark {
     private CacheService cacheService;
     private RedissonClient redissonClient;
