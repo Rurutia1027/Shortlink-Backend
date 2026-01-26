@@ -5,6 +5,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.tus.common.domain.redis.CacheService;
 import org.tus.shortlink.admin.filter.AdminUserInfoResolver;
 import org.tus.shortlink.base.biz.filter.UserContextFilter;
 
@@ -22,11 +23,12 @@ import org.tus.shortlink.base.biz.filter.UserContextFilter;
 public class UserContextFilterConfig {
     /**
      * Create AdminUserInfoResolver bean.
-     * This resolver will be enhanced as we add Redis, JWT, and Spring Security support.
+     * Requires CacheService for Redis session lookup.
+     * TODO: This resolver will be enhanced as we add Redis, JWT, and Spring Security support.
      */
     @Bean
-    public AdminUserInfoResolver adminUserInfoResolver() {
-        return new AdminUserInfoResolver();
+    public AdminUserInfoResolver adminUserInfoResolver(CacheService cacheService) {
+        return new AdminUserInfoResolver(cacheService);
     }
 
     /**

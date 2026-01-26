@@ -40,6 +40,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
+
     private final QueryService queryService;
     private final GroupService groupService;
     private final DistributedLockService distributedLockService;
@@ -63,7 +64,7 @@ public class UserServiceImpl implements UserService {
                 .select("u")
                 .eq("u.username", username)
                 .and()
-                .isNull("u.deleted") // check soft delete flag
+                .isNull("u.deleted")  // Check soft delete
                 .build();
 
         Map<String, Object> params = builder.getInjectionParameters();
@@ -85,16 +86,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Boolean hasUsername(String username) {
+    public Boolean isUsernameValidForRegistration(String username) {
         if (username == null || username.isBlank()) {
-            return true; // Empty username is considered as "exists" (invalid)
+            return true;  // Empty username is considered as "exists" (invalid)
         }
 
         // Check Bloom Filter first for cache penetration protection
         if (bloomFilterService.contains(USERNAME_BLOOM_FILTER_NAME, username)) {
+            // Bloom Filter indicates username might exist, check database
             return !checkUsernameInDatabase(username);
         }
-
         // Bloom Filter indicates username definitely doesn't exist
         return true;
     }
@@ -126,23 +127,24 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("requestParam must not be null");
         }
 
-        if (requestParam.getUsername() != null || requestParam.getUsername().isBlank()) {
+        if (requestParam.getUsername() == null || requestParam.getUsername().isBlank()) {
             throw new IllegalArgumentException("username must not be empty");
         }
 
         // 1. Check if username exists
-        if (!hasUsername(requestParam.getUsername())) {
+        if (!isUsernameValidForRegistration(requestParam.getUsername())) {
             throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
         }
 
         // Acquire distributed lock to prevent concurrent registration
         String lockKey = RedisCacheConstant.LOCK_USER_REGISTER_KEY + requestParam.getUsername();
-        distributedLockService.executeWithLock(lockKey, () -> {
-            try {
+
+        try {
+            distributedLockService.executeWithLock(lockKey, () -> {
                 // 2. Create user entity
                 User user = User.builder()
                         .username(requestParam.getUsername())
-                        .password(requestParam.getPassword()) // TODO: Encrypt password before saving
+                        .password(requestParam.getPassword())  // TODO: Encrypt password before saving
                         .realName(requestParam.getRealName())
                         .phone(requestParam.getPhone())
                         .mail(requestParam.getMail())
@@ -152,10 +154,14 @@ public class UserServiceImpl implements UserService {
                 queryService.save(user);
 
                 // 4. Create default group for the user
+                // Note: saveGroup has @Transactional(rollbackFor = Exception.class)
+                // It joins the outer transaction (REQUIRED propagation)
+                // If saveGroup fails, the exception will propagate and trigger rollback
                 groupService.saveGroup(requestParam.getUsername(), "default");
 
-                // Add username to Bloom Filter after successful registration
+                // 5. Add username to Bloom Filter after successful registration
                 bloomFilterService.add(USERNAME_BLOOM_FILTER_NAME, requestParam.getUsername());
+            }); // End of distributed lock execution
         } catch (HibernateException e) {
             // Check if it's a unique constraint violation
             if (e instanceof ConstraintViolationException ||
@@ -171,11 +177,14 @@ public class UserServiceImpl implements UserService {
             // Spring's DataIntegrityViolationException for unique constraint violations
             log.warn("Duplicate username detected (DataIntegrityViolationException): {}", requestParam.getUsername());
             throw new ClientException(UserErrorCodeEnum.USER_EXIST);
+        } catch (ClientException | ServiceException e) {
+            // Re-throw business exceptions (they should trigger transaction rollback)
+            // These exceptions from saveGroup will trigger rollback of the outer transaction
+            throw e;
         } catch (Exception e) {
             log.error("Unexpected error during user registration: {}", requestParam.getUsername(), e);
             throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
         }
-        }); // End of distributed lock execution
     }
 
     @Override
@@ -191,8 +200,8 @@ public class UserServiceImpl implements UserService {
         }
 
         // Verify that the update request is for the current logged-in user
-        if (Objects.equals(requestParam.getUsername(), currentUsername)) {
-            throw new ClientException("Current login user update request exception.");
+        if (!Objects.equals(requestParam.getUsername(), currentUsername)) {
+            throw new ClientException("当前登录用户修改请求异常");
         }
 
         updateUser(currentUsername, requestParam);
@@ -203,14 +212,14 @@ public class UserServiceImpl implements UserService {
      * Internal helper method
      */
     @Transactional
-    public void updateUser(String currentUsername, UserUpdateReqDTO requestParam) {
+    private void updateUser(String currentUsername, UserUpdateReqDTO requestParam) {
         if (requestParam == null) {
             throw new IllegalArgumentException("requestParam must not be null");
         }
 
         // Verify that the update request is for the current logged-in user
         if (!Objects.equals(requestParam.getUsername(), currentUsername)) {
-            throw new ClientException("Current login request invalid!");
+            throw new ClientException("当前登录用户修改请求异常");
         }
 
         // 1. Query existing user
@@ -243,21 +252,17 @@ public class UserServiceImpl implements UserService {
         if (requestParam.getRealName() != null) {
             user.setRealName(requestParam.getRealName());
         }
-
         if (requestParam.getPhone() != null) {
             user.setPhone(requestParam.getPhone());
         }
-
         if (requestParam.getMail() != null) {
             user.setMail(requestParam.getMail());
         }
-
         // Note: Password update should be handled separately with encryption
 
-        // 3. Save(update)
+        // 3. Save (update)
         queryService.save(user, true);
     }
-
 
     @Override
     public UserLoginRespDTO login(UserLoginReqDTO requestParam) {
@@ -266,7 +271,7 @@ public class UserServiceImpl implements UserService {
         }
 
         if (requestParam.getUsername() == null || requestParam.getUsername().isBlank()) {
-            throw new IllegalArgumentException("username must no be empty");
+            throw new IllegalArgumentException("username must not be empty");
         }
 
         // 1. Query user by username and password
@@ -276,8 +281,9 @@ public class UserServiceImpl implements UserService {
                 .select("u")
                 .eq("u.username", requestParam.getUsername())
                 .and()
-                .eq("u.password", requestParam.getPassword()) // TODO: Compare encrypted passwd
-                .isNull("u.deleted") // delFlag = 0 -> deleted is null
+                .eq("u.password", requestParam.getPassword())  // TODO: Compare encrypted password
+                .and()
+                .isNull("u.deleted")  // delFlag = 0 -> deleted is null
                 .build();
 
         Map<String, Object> params = builder.getInjectionParameters();
@@ -287,10 +293,22 @@ public class UserServiceImpl implements UserService {
         List<User> results = queryService.query(hql, params);
 
         if (results == null || results.isEmpty()) {
-            throw new ClientException("User not exit");
+            throw new ClientException("用户不存在");
+        }
+
+        if (results.size() > 1) {
+            throw new ServiceException("Data inconsistency: duplicate users for username: " + requestParam.getUsername());
         }
 
         User user = results.get(0);
+        UserRespDTO userInfoDTO = UserRespDTO.builder()
+                .id(user.getId())
+                .deletionTime(user.getDeletionTime())
+                .mail(user.getMail())
+                .phone(user.getPhone())
+                .realName(user.getRealName())
+                .username(user.getUsername())
+                .build();
 
         // Check Redis cache for existing login session
         String loginKey = RedisCacheConstant.USER_LOGIN_KEY + requestParam.getUsername();
@@ -300,21 +318,28 @@ public class UserServiceImpl implements UserService {
             cacheService.expire(loginKey, Duration.ofMinutes(30));
             String token = hasLoginMap.keySet().stream()
                     .findFirst()
-                    .orElseThrow(() -> new ClientException("User login error!"));
+                    .orElseThrow(() -> new ClientException("User login error"));
             return UserLoginRespDTO.builder()
                     .token(token)
+                    .userInfo(userInfoDTO)
                     .build();
         }
 
         // Create new session
         String uuid = UUID.randomUUID().toString();
+
         // Store login session in Redis
         // Hash structure: Key: login_username, Value: {token: JSON(user info)}
         cacheService.hset(loginKey, uuid, user);
         cacheService.expire(loginKey, Duration.ofMinutes(30));
 
+        // Store reverse mapping: token -> username (for efficient token lookup in filter)
+        String tokenToUsernameKey = RedisCacheConstant.TOKEN_TO_USERNAME_KEY + uuid;
+        cacheService.set(tokenToUsernameKey, requestParam.getUsername(), Duration.ofMinutes(30));
+
         return UserLoginRespDTO.builder()
                 .token(uuid)
+                .userInfo(userInfoDTO)
                 .build();
     }
 
@@ -333,16 +358,20 @@ public class UserServiceImpl implements UserService {
     @Override
     public void logout(String username, String token) {
         if (username == null || username.isBlank() || token == null || token.isBlank()) {
-            throw new ClientException("User Token not exist or user not even registered");
+            throw new ClientException("用户Token不存在或用户未登录");
         }
 
         // Check if user is logged in via Redis cache
         if (checkLogin(username, token)) {
             String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
             cacheService.delete(loginKey);
+            // Also delete reverse mapping
+            String tokenToUsernameKey = "short-link:token-to-username:" + token;
+            cacheService.delete(tokenToUsernameKey);
             return;
         }
-        throw new ClientException("User Token not exist or user not event login!");
+
+        throw new ClientException("用户Token不存在或用户未登录");
     }
 
     /**

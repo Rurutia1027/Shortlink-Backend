@@ -1,8 +1,6 @@
 package org.tus.shortlink.admin.config;
 
 import org.redisson.api.RedissonClient;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.tus.common.domain.redis.BloomFilterService;
@@ -14,18 +12,17 @@ import org.tus.common.domain.redis.impl.RedisServiceImpl;
 /**
  * Redis service configuration for Admin module.
  *
- * <p>Follows the same pattern as {@link AdminPersistenceConfig};
+ * <p>Follows the same pattern as {@link AdminPersistenceConfig}:
  * <ul>
- *     <li>Business layer injects interfaces (DistributedLockService, BloomFilterService,
- *     CacheService}</li>
- *     <li>Configuration creates implementation via RedisService</li>
- *     <li>RedissonClient is auto-configured by redisson-spring-boot-starter</li>
+ *   <li>Business layer injects interfaces (DistributedLockService, BloomFilterService, CacheService)</li>
+ *   <li>Configuration creates implementations via RedisService</li>
+ *   <li>RedissonClient is auto-configured by redisson-spring-boot-starter</li>
  * </ul>
  * </p>
  */
 @Configuration
-@AutoConfigureAfter(RedisAutoConfiguration.class)
 public class AdminRedisConfig {
+
     /**
      * RedisService implementation backed by Redisson.
      * Business layer should not inject RedisService directly, but use specific services.
@@ -45,7 +42,7 @@ public class AdminRedisConfig {
     }
 
     /**
-     * Bloom filter service
+     * Bloom filter service.
      * Used for: GID cache penetration protection, username cache penetration protection.
      */
     @Bean

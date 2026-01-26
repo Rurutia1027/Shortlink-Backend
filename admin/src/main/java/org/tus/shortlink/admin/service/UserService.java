@@ -25,7 +25,7 @@ public interface UserService {
      * @param username username
      * @return true if username exists, false otherwise
      */
-    Boolean hasUsername(String username);
+    Boolean isUsernameValidForRegistration(String username);
 
     /**
      * Register a new user

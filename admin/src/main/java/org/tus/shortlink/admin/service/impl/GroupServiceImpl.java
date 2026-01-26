@@ -44,8 +44,8 @@ import java.util.Optional;
 public class GroupServiceImpl implements GroupService {
     private final QueryService queryService;
     private final ShortLinkActualRemoteService shortLinkActualRemoteService;
-    private DistributedLockService distributedLockService;
-    private BloomFilterService bloomFilterService;
+    private final DistributedLockService distributedLockService;
+    private final BloomFilterService bloomFilterService;
 
     // TODO: Implement UserContext to get current username
     // For now, we'll need to pass username as parameter or implement UserContext
@@ -71,6 +71,7 @@ public class GroupServiceImpl implements GroupService {
 
     // TODO: Optimize locking strategy by narrowing the distributed lock
     // to the critical section: gid generation and DB save
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public void saveGroup(String username, String groupName) {
         // Use distributed lock to prevent concurrent group creation for the same user

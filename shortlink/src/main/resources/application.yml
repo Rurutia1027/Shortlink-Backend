@@ -23,7 +23,7 @@ spring:
       # Single Redis node (default dev)
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:123456}
+#      password: ${REDIS_PASSWORD:123456}
 server:
   port: 8081
 
