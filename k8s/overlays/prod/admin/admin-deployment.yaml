@@ -33,9 +33,6 @@ spec:
               value: redis.shortlink.svc.cluster.local
             - name: REDIS_PORT
               value: "6379"
-            # Set REDIS_PASSWORD to empty string if Redis has no password configured
-            - name: REDIS_PASSWORD
-              value: ""
             - name: SHORTLINK_SERVICE_URL
               value: http://shortlink.shortlink.svc.cluster.local:8081
           resources:
