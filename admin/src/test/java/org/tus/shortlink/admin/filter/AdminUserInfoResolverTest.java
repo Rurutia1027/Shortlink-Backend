@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("AdminUserInfoResolver Tests")
 class AdminUserInfoResolverTest {
 
-    private final AdminUserInfoResolver resolver = new AdminUserInfoResolver();
+    private final AdminUserInfoResolver resolver = new AdminUserInfoResolver(null);
 
     @Test
     @DisplayName("Should implement UserInfoResolver interface")
