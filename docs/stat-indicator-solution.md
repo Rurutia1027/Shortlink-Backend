@@ -426,16 +426,8 @@ User Request → ShortLinkController.restoreUrl()
   → Return 302 Redirect (immediate)
 
 Kafka Topic: shortlink-stats-events
-  → Spring Kafka Consumer (@KafkaListener)
-  → Step 1: Create/Update Message State in PostgreSQL (t_kafka_message_state)
-  → Step 2: Enrich Event with Business Data (Query t_link via QueryService)
-  → Step 3: Batch Insert Events to ClickHouse
-  → Step 4: Update Message State (SUCCESS/FAILED)
-  → Step 5: Commit Kafka Offset (only if all succeed)
-  
-PostgreSQL:
-  → t_link: Business data (link metadata)
-  → t_kafka_message_state: Message processing state (idempotency, recovery)
+  → Kafka Consumer (independent service/worker)
+  → Sync Events to ClickHouse (batch insert)
   
 ClickHouse:
   → Raw Events Table (link_stats_events)
@@ -444,13 +436,6 @@ ClickHouse:
 Query Flow:
   Controller → Service → Query PostgreSQL (t_link) + ClickHouse (stats tables) → Merge Results → Return
 ```
-
-**Key Integration Points:**
-- Spring Kafka `@KafkaListener` integrates with Spring framework
-- `QueryService`/`PersistenceService` from persistence module for DB operations
-- `@Transactional` ensures atomicity between DB state and ClickHouse insert
-- Message state table enables idempotency and recovery
-- Business data enrichment from PostgreSQL before storing in ClickHouse
 
 ### Implementation Phases
 
@@ -477,41 +462,15 @@ Query Flow:
 5. Set up connection pooling
 
 #### Phase 4: Kafka Consumer & ClickHouse Sync (Week 2-3)
-1. **Create Kafka Message State Table** in PostgreSQL (Flyway migration)
-   - Table: `t_kafka_message_state`
-   - Purpose: Track message processing state for idempotency and recovery
-   - Technical pattern validation for future event-driven modules (e.g., payment systems)
-
-2. **Implement Spring Kafka Consumer** with `@KafkaListener`
-   - Use Spring Kafka integration (NOT standalone consumer)
-   - Integrate with `QueryService`/`PersistenceService` from persistence module
-   - Implement message state tracking in PostgreSQL
-
-3. **Implement Message State Service**
-   - Create/update message state in DB
-   - Track processing status (PENDING → PROCESSING → SUCCESS/FAILED)
-   - Handle retry logic with retry count tracking
-
-4. **Implement Business Data Enrichment**
-   - Query PostgreSQL to enrich events with business data (e.g., link metadata)
-   - Store enriched data in ClickHouse for analytics
-   - Handle enrichment failures gracefully (don't fail entire batch)
-
-5. **Implement Batch Processing**
-   - Process 1000-10000 events per batch
-   - Use Spring `@Transactional` for DB operations
-   - Manual Kafka acknowledgment (only after DB + ClickHouse succeed)
-
-6. **Implement ClickHouse Batch Insert**
-   - Batch insert events to ClickHouse
-   - Error handling and retry logic
-   - Update message state on success/failure
-
-7. **Add Monitoring**
-   - Consumer lag monitoring
-   - Processing rate metrics
-   - Error rate and retry count tracking
-   - Message state query endpoints for debugging
+1. Implement independent Kafka consumer (separate service/worker, NOT Spring Scheduler)
+2. Consumer options:
+   - Option A: Standalone Java application using Kafka Consumer API
+   - Option B: Spring Boot application with `@KafkaListener` (but independent deployment)
+   - Option C: Kubernetes Job/CronJob for batch processing
+3. Implement batch processing (1000-10000 events per batch)
+4. Implement ClickHouse batch insert (using `INSERT INTO ... VALUES` or `INSERT INTO ... SELECT`)
+5. Add error handling and retry logic
+6. Add monitoring (consumer lag, processing rate, error rate)
 
 #### Phase 5: ClickHouse Aggregation (Week 3-4)
 1. Create Materialized Views for automatic aggregation:
@@ -695,279 +654,51 @@ public class KafkaConfig {
 }
 ```
 
-### 7.3 Kafka Consumer Service (Spring Integration with Persistence Module)
+### 7.3 Kafka Consumer Service (Independent Service)
 
-**Architecture Decision: Spring Kafka + @KafkaListener**
-
-We use Spring Kafka with `@KafkaListener` annotation instead of standalone consumer because:
-
-1. **Integration with Persistence Module**: Need to interact with PostgreSQL via `QueryService`/`PersistenceService`
-2. **State Persistence**: Need DB-level state tracking for message processing
-   - Enables idempotency and recovery
-   - Technical pattern validation for future event-driven modules
-3. **Business Data Lookup**: Messages may contain references to DB entities, need to query PostgreSQL
-4. **Transaction Management**: Spring's `@Transactional` support for DB operations
-5. **Technical Pattern Validation**: This implementation validates patterns for future event-driven projects
-
-**Message Processing State Table (PostgreSQL)**
-
-First, we create a table to track message processing state:
-
-```sql
--- Message processing state table (in PostgreSQL)
-CREATE TABLE t_kafka_message_state (
-    uuid VARCHAR(255) PRIMARY KEY,
-    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modified_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    message_key VARCHAR(255) NOT NULL,
-    topic VARCHAR(255) NOT NULL,
-    partition_id INTEGER NOT NULL,
-    offset BIGINT NOT NULL,
-    message_status VARCHAR(32) NOT NULL, -- 'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'RETRY'
-    retry_count INTEGER DEFAULT 0,
-    error_message TEXT,
-    processed_date TIMESTAMP,
-    business_data JSONB, -- Store business context from message
-    CONSTRAINT uk_kafka_message_state UNIQUE (topic, partition_id, offset)
-);
-
-CREATE INDEX idx_kafka_message_state_status ON t_kafka_message_state(message_status);
-CREATE INDEX idx_kafka_message_state_retry ON t_kafka_message_state(retry_count, message_status);
-```
-
-**Kafka Consumer with Spring Integration**
+**Option A: Standalone Kafka Consumer Application**
 
 ```java
+// Separate Spring Boot application: shortlink-stats-consumer
+@SpringBootApplication
+public class StatsConsumerApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(StatsConsumerApplication.class, args);
+    }
+}
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class ShortLinkStatsKafkaConsumer {
     private final ClickHouseService clickHouseService;
-    private final QueryService queryService; // From persistence module
-    private final KafkaMessageStateService messageStateService;
     
     @KafkaListener(
         topics = "${kafka.topics.stats-events:shortlink-stats-events}",
         groupId = "${kafka.consumer.group-id:shortlink-stats-aggregator}",
         containerFactory = "kafkaListenerContainerFactory"
     )
-    @Transactional(rollbackFor = Exception.class)
-    public void consumeBatch(List<ConsumerRecord<String, ShortLinkStatsRecordDTO>> records,
-                            Acknowledgment acknowledgment) {
+    public void consumeBatch(List<ConsumerRecord<String, ShortLinkStatsRecordDTO>> records) {
         log.info("Received {} events from Kafka", records.size());
         
-        List<KafkaMessageState> messageStates = new ArrayList<>();
-        
         try {
-            // Step 1: Record message states in PostgreSQL (PENDING -> PROCESSING)
-            for (ConsumerRecord<String, ShortLinkStatsRecordDTO> record : records) {
-                KafkaMessageState state = messageStateService.createOrUpdateState(
-                    record.topic(),
-                    record.partition(),
-                    record.offset(),
-                    record.key(),
-                    "PROCESSING",
-                    record.value()
-                );
-                messageStates.add(state);
-            }
-            
-            // Step 2: Convert to DTOs and enrich with DB data if needed
+            // Convert to DTOs
             List<ShortLinkStatsRecordDTO> events = records.stream()
-                .map(record -> {
-                    ShortLinkStatsRecordDTO event = record.value();
-                    
-                    // Example: Enrich event with DB business data
-                    // If message contains gid, we can query link metadata
-                    if (event.getGid() != null) {
-                        enrichEventWithBusinessData(event);
-                    }
-                    
-                    return event;
-                })
+                .map(ConsumerRecord::value)
                 .collect(Collectors.toList());
             
-            // Step 3: Batch insert to ClickHouse
+            // Batch insert to ClickHouse
             clickHouseService.batchInsertEvents(events);
             
-            // Step 4: Update message states to SUCCESS
-            for (KafkaMessageState state : messageStates) {
-                messageStateService.updateState(
-                    state.getUuid(),
-                    "SUCCESS",
-                    null,
-                    new Date()
-                );
-            }
-            
-            // Step 5: Manual commit (only after DB and ClickHouse operations succeed)
-            acknowledgment.acknowledge();
-            
             log.info("Successfully processed {} events", events.size());
-            
         } catch (Exception e) {
             log.error("Failed to process events", e);
-            
-            // Step 6: Update message states to FAILED or RETRY
-            for (KafkaMessageState state : messageStates) {
-                int retryCount = state.getRetryCount() + 1;
-                String newStatus = retryCount < 3 ? "RETRY" : "FAILED";
-                
-                messageStateService.updateState(
-                    state.getUuid(),
-                    newStatus,
-                    e.getMessage(),
-                    null
-                );
-            }
-            
-            // Don't acknowledge - Kafka will retry
-            throw e; // Will trigger Kafka retry mechanism
-        }
-    }
-    
-    /**
-     * Enrich event with business data from PostgreSQL
-     * Example: Query link metadata, user info, etc.
-     */
-    private void enrichEventWithBusinessData(ShortLinkStatsRecordDTO event) {
-        try {
-            // Query link metadata from PostgreSQL
-            String hql = "FROM ShortLink sl WHERE sl.fullShortUrl = :fullShortUrl AND sl.deleted IS NULL";
-            Map<String, Object> params = Map.of("fullShortUrl", event.getFullShortUrl());
-            List<ShortLink> links = queryService.query(hql, params);
-            
-            if (!links.isEmpty()) {
-                ShortLink link = links.get(0);
-                // Enrich event with additional business context if needed
-                // For example: link description, group name, etc.
-                // This data can be stored in ClickHouse for analytics
-            }
-        } catch (Exception e) {
-            log.warn("Failed to enrich event with business data", e);
-            // Don't fail the entire batch if enrichment fails
+            // In production, implement dead-letter queue or retry mechanism
+            throw e; // Will trigger Kafka retry
         }
     }
 }
 
-/**
- * Service for managing Kafka message processing state
- */
-@Service
-@RequiredArgsConstructor
-@Slf4j
-public class KafkaMessageStateService {
-    private final QueryService queryService;
-    
-    @Transactional
-    public KafkaMessageState createOrUpdateState(
-            String topic, int partition, long offset, String messageKey,
-            String status, ShortLinkStatsRecordDTO businessData) {
-        
-        // Check if state already exists
-        String hql = "FROM KafkaMessageState kms " +
-                    "WHERE kms.topic = :topic " +
-                    "AND kms.partitionId = :partition " +
-                    "AND kms.offset = :offset";
-        Map<String, Object> params = Map.of(
-            "topic", topic,
-            "partition", partition,
-            "offset", offset
-        );
-        
-        List<KafkaMessageState> existing = queryService.query(hql, params);
-        
-        if (!existing.isEmpty()) {
-            KafkaMessageState state = existing.get(0);
-            state.setMessageStatus(status);
-            state.setModifiedDate(new Date());
-            if (businessData != null) {
-                state.setBusinessData(convertToJson(businessData));
-            }
-            return queryService.save(state, true);
-        } else {
-            // Create new state
-            KafkaMessageState state = KafkaMessageState.builder()
-                .topic(topic)
-                .partitionId(partition)
-                .offset(offset)
-                .messageKey(messageKey)
-                .messageStatus(status)
-                .retryCount(0)
-                .businessData(convertToJson(businessData))
-                .build();
-            return queryService.save(state);
-        }
-    }
-    
-    @Transactional
-    public void updateState(String uuid, String status, String errorMessage, Date processedDate) {
-        KafkaMessageState state = queryService.findById(KafkaMessageState.class, uuid);
-        if (state != null) {
-            state.setMessageStatus(status);
-            state.setModifiedDate(new Date());
-            if (errorMessage != null) {
-                state.setErrorMessage(errorMessage);
-            }
-            if (processedDate != null) {
-                state.setProcessedDate(processedDate);
-            }
-            if ("RETRY".equals(status) || "FAILED".equals(status)) {
-                state.setRetryCount(state.getRetryCount() + 1);
-            }
-            queryService.save(state, true);
-        }
-    }
-    
-    private String convertToJson(ShortLinkStatsRecordDTO data) {
-        // Convert DTO to JSON string for storage
-        // Use Jackson or similar
-        return ""; // Implementation details
-    }
-}
-
-/**
- * Entity for Kafka message state tracking
- */
-@Entity
-@Table(name = "t_kafka_message_state")
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class KafkaMessageState extends UniqueNamedArtifact {
-    @Column(name = "message_key", nullable = false)
-    private String messageKey;
-    
-    @Column(name = "topic", nullable = false)
-    private String topic;
-    
-    @Column(name = "partition_id", nullable = false)
-    private Integer partitionId;
-    
-    @Column(name = "offset", nullable = false)
-    private Long offset;
-    
-    @Column(name = "message_status", nullable = false, length = 32)
-    private String messageStatus;
-    
-    @Column(name = "retry_count")
-    private Integer retryCount = 0;
-    
-    @Column(name = "error_message", columnDefinition = "TEXT")
-    private String errorMessage;
-    
-    @Column(name = "processed_date")
-    private Date processedDate;
-    
-    @Column(name = "business_data", columnDefinition = "JSONB")
-    private String businessData; // JSON string
-}
-```
-
-**Kafka Consumer Configuration**
-
-```java
 @Configuration
 @EnableKafka
 public class KafkaConsumerConfig {
@@ -984,13 +715,10 @@ public class KafkaConsumerConfig {
         configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         
         // Performance tuning
-        configProps.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10000);
+        configProps.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10000); // Max records per poll
         configProps.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1048576); // 1MB
-        configProps.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 500);
+        configProps.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 500); // 500ms
         configProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false); // Manual commit
-        
-        // Error handling
-        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         
         return new DefaultKafkaConsumerFactory<>(configProps);
     }
@@ -1003,41 +731,66 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(consumerFactory());
         factory.setBatchListener(true); // Enable batch processing
         factory.setConcurrency(10); // 10 concurrent consumers per instance
-        
-        // Error handling
-        factory.setCommonErrorHandler(new DefaultErrorHandler(
-            new FixedBackOff(1000L, 3L) // Retry 3 times with 1 second delay
-        ));
-        
-        // Manual acknowledgment
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
-        
         return factory;
     }
 }
 ```
 
-**Why This Design?**
+**Option B: Native Kafka Consumer (No Spring)**
 
-1. **State Persistence**: DB table tracks message processing state, enabling:
-   - Recovery from failures
-   - Monitoring and alerting
-   - Idempotency (prevent duplicate processing)
-
-2. **Business Data Integration**: 
-   - Messages can reference DB entities (e.g., `gid`, `fullShortUrl`)
-   - Consumer can query PostgreSQL to enrich events
-   - Enriched data stored in ClickHouse for analytics
-
-3. **Transaction Management**:
-   - Spring `@Transactional` ensures DB state and ClickHouse insert are atomic
-   - If ClickHouse insert fails, DB state is rolled back
-   - Kafka commit only happens after both succeed
-
-4. **Payment Module Preparation**:
-   - Same pattern will be used for payment transactions
-   - DB state table tracks transaction status
-   - Enables distributed transaction coordination
+```java
+// Pure Kafka Consumer API - completely decoupled from Spring
+public class ShortLinkStatsConsumerWorker implements Runnable {
+    private final KafkaConsumer<String, ShortLinkStatsRecordDTO> consumer;
+    private final ClickHouseService clickHouseService;
+    private volatile boolean running = true;
+    
+    public ShortLinkStatsConsumerWorker(String bootstrapServers, 
+                                       ClickHouseService clickHouseService) {
+        Properties props = new Properties();
+        props.put("bootstrap.servers", bootstrapServers);
+        props.put("group.id", "shortlink-stats-aggregator");
+        props.put("key.deserializer", StringDeserializer.class.getName());
+        props.put("value.deserializer", JsonDeserializer.class.getName());
+        props.put("max.poll.records", "10000");
+        props.put("enable.auto.commit", "false");
+        
+        this.consumer = new KafkaConsumer<>(props);
+        this.clickHouseService = clickHouseService;
+    }
+    
+    @Override
+    public void run() {
+        consumer.subscribe(Collections.singletonList("shortlink-stats-events"));
+        
+        while (running) {
+            ConsumerRecords<String, ShortLinkStatsRecordDTO> records = 
+                consumer.poll(Duration.ofMillis(1000));
+            
+            if (!records.isEmpty()) {
+                List<ShortLinkStatsRecordDTO> events = new ArrayList<>();
+                for (ConsumerRecord<String, ShortLinkStatsRecordDTO> record : records) {
+                    events.add(record.value());
+                }
+                
+                try {
+                    clickHouseService.batchInsertEvents(events);
+                    consumer.commitSync(); // Manual commit after successful processing
+                } catch (Exception e) {
+                    log.error("Failed to process events", e);
+                    // Implement retry or dead-letter queue logic
+                }
+            }
+        }
+        
+        consumer.close();
+    }
+    
+    public void shutdown() {
+        running = false;
+    }
+}
+```
 
 ### 7.4 ClickHouse Service Implementation
 
@@ -1458,11 +1211,9 @@ TTL event_time + INTERVAL 30 DAY;  -- Shorter retention for detailed logs
 
 **Note**: For most use cases, querying aggregated materialized views is sufficient. Only create access records table if you need to query individual events.
 
-### 8.7 PostgreSQL Schema (Business Data + Message State)
+### 8.7 PostgreSQL Schema (Business Data Only)
 
-**Important**: PostgreSQL stores:
-1. **Business Data**: Link metadata (`t_link` table)
-2. **Message Processing State**: Kafka message state tracking (`t_kafka_message_state` table)
+**Important**: PostgreSQL (`t_link`) stores only business data (link metadata), NOT statistics.
 
 ```sql
 -- PostgreSQL: t_link table (existing, unchanged)
@@ -1472,45 +1223,10 @@ TTL event_time + INTERVAL 30 DAY;  -- Shorter retention for detailed logs
 -- - NO statistics data
 
 -- Statistics are stored ONLY in ClickHouse
-
--- NEW: Kafka Message State Table
--- This table tracks message processing state for:
--- 1. Statistics events (current use case)
--- 2. Payment transactions (future use case)
-CREATE TABLE t_kafka_message_state (
-    uuid VARCHAR(255) PRIMARY KEY,
-    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modified_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    message_key VARCHAR(255) NOT NULL,
-    topic VARCHAR(255) NOT NULL,
-    partition_id INTEGER NOT NULL,
-    offset BIGINT NOT NULL,
-    message_status VARCHAR(32) NOT NULL, 
-    -- Status values: 'PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'RETRY'
-    retry_count INTEGER DEFAULT 0,
-    error_message TEXT,
-    processed_date TIMESTAMP,
-    business_data JSONB, -- Store business context from message
-    CONSTRAINT uk_kafka_message_state UNIQUE (topic, partition_id, offset)
-);
-
-CREATE INDEX idx_kafka_message_state_status ON t_kafka_message_state(message_status);
-CREATE INDEX idx_kafka_message_state_retry ON t_kafka_message_state(retry_count, message_status);
-CREATE INDEX idx_kafka_message_state_topic_partition ON t_kafka_message_state(topic, partition_id);
 ```
 
-**Why Message State Table?**
-
-1. **Idempotency**: Prevent duplicate processing of the same message
-2. **Recovery**: Track failed messages for retry/replay
-3. **Monitoring**: Query processing status, retry counts, error rates
-4. **Payment Module Preparation**: Same pattern for transactional message processing
-5. **Business Context**: Store business data from messages for correlation
-
 **Data Flow:**
-- **PostgreSQL**: 
-  - Link creation, updates, metadata queries (`t_link`)
-  - Message processing state tracking (`t_kafka_message_state`)
+- **PostgreSQL**: Link creation, updates, metadata queries
 - **ClickHouse**: All statistics data (PV, UV, aggregations)
 - **Query Service**: Merges data from both sources when needed
 
@@ -1687,16 +1403,8 @@ CREATE INDEX idx_kafka_message_state_topic_partition ON t_kafka_message_state(to
 ### Phase 6: Production Rollout (Week 6)
 - [ ] Deploy to staging environment
 - [ ] Monitor for 1 week
-- [ ] Verify message state tracking works correctly
-- [ ] Test failure scenarios and recovery
 - [ ] Gradual rollout to production (10% → 50% → 100%)
 - [ ] Documentation
-
-### Phase 7: Technical Pattern Documentation (Future)
-- [ ] Document reusable patterns from this implementation
-- [ ] Create reference architecture for future event-driven modules
-- [ ] Document lessons learned and best practices
-- [ ] Prepare technical evaluation report for future projects
 
 ---
 
@@ -2230,216 +1938,6 @@ public class ShortLinkStatsRespDTO {
 ---
 
 **Note**: These additional indicators should be implemented incrementally based on business priorities and user feedback. Start with Phase 1 indicators, then expand based on actual usage patterns and requirements.
-
----
-
-## 11. Spring Kafka Integration & DB State Persistence
-
-### 11.1 Why Spring Kafka Instead of Standalone Consumer?
-
-**Architecture Decision: Spring Kafka + @KafkaListener**
-
-We chose Spring Kafka integration over standalone consumer for the following reasons:
-
-#### 11.1.1 Integration with Persistence Module
-
-**Requirement**: Kafka consumer needs to interact with PostgreSQL via `QueryService`/`PersistenceService` from the persistence module.
-
-**Benefits**:
-- ✅ Direct access to `QueryService` for DB queries
-- ✅ Use existing `PersistenceService` for state management
-- ✅ Consistent transaction management across modules
-- ✅ Leverage existing DB connection pooling
-
-**Example Use Cases**:
-- Query link metadata from `t_link` table to enrich events
-- Lookup user information based on message data
-- Validate business rules before processing
-
-#### 11.1.2 DB-Level State Persistence
-
-**Requirement**: Track message processing state in PostgreSQL for reliability and monitoring.
-
-**Why DB State Table?**
-1. **Idempotency**: Prevent duplicate processing of the same message
-   - Unique constraint on `(topic, partition, offset)`
-   - Check state before processing
-
-2. **Recovery**: Track failed messages for retry/replay
-   - Query messages with status 'FAILED' or 'RETRY'
-   - Implement retry logic based on retry count
-
-3. **Monitoring**: Query processing status, retry counts, error rates
-   - Dashboard queries: `SELECT COUNT(*) WHERE status = 'FAILED'`
-   - Alert on high retry counts or error rates
-
-4. **Audit Trail**: Track when messages were processed
-   - `processed_date` field for audit purposes
-   - `business_data` JSONB field stores message context
-
-#### 11.1.3 Business Data Enrichment
-
-**Requirement**: Messages may contain references to DB entities that need to be queried.
-
-**Example Scenarios**:
-```java
-// Message contains gid, need to query link metadata
-ShortLinkStatsRecordDTO event = ...; // Contains gid, fullShortUrl
-ShortLink link = queryService.findByFullShortUrl(event.getFullShortUrl());
-// Enrich event with: link.description, link.groupName, etc.
-
-// Pattern can be reused for other event types:
-// - Events with user references: query user info
-// - Events with account references: query account data
-// - Events with order references: query order details
-// - Any event that needs business context enrichment
-```
-
-**Benefits**:
-- Enriched data stored in ClickHouse for better analytics
-- Business context available for reporting
-- Correlation between events and business entities
-
-#### 11.1.4 Transaction Management
-
-**Requirement**: Ensure atomicity between DB state updates and ClickHouse inserts.
-
-**Spring Transaction Support**:
-```java
-@Transactional(rollbackFor = Exception.class)
-public void consumeBatch(...) {
-    // 1. Update DB state (PROCESSING)
-    messageStateService.updateState(...);
-    
-    // 2. Insert to ClickHouse
-    clickHouseService.batchInsertEvents(...);
-    
-    // 3. Update DB state (SUCCESS)
-    messageStateService.updateState(...);
-    
-    // If ClickHouse insert fails, DB state is rolled back
-    // Kafka commit only happens after both succeed
-}
-```
-
-**Benefits**:
-- Atomic operations: DB state and ClickHouse insert succeed or fail together
-- Consistency: No orphaned state records
-- Reliability: Can recover from partial failures
-
-### 11.2 Technical Pattern Validation for Future Projects
-
-**Purpose**: This statistics module serves as a technical evaluation and reference implementation for future event-driven modules.
-
-#### 11.2.1 Pattern Reusability
-
-**Validated Technical Patterns**:
-1. **Spring Kafka Integration**: `@KafkaListener` with Spring framework
-2. **DB State Persistence**: Message state tracking in PostgreSQL
-3. **Business Data Enrichment**: Query DB to enrich events before processing
-4. **Transaction Management**: `@Transactional` for atomic operations
-5. **Idempotency**: Unique constraint on message identifier
-6. **Recovery Mechanism**: Retry logic with state tracking
-
-**Reusable Components**:
-1. **`t_kafka_message_state` Table**: Generic pattern for any event-driven processing
-   - Track processing state for any event type
-   - Store business context in `business_data` JSONB field
-   - Extensible for different business domains
-
-2. **Spring Kafka Consumer Pattern**: Can be applied to other modules
-   - `@KafkaListener` for event consumption
-   - `@Transactional` for DB operations
-   - State tracking and enrichment pattern
-
-3. **Message State Service**: Generic service for state management
-   - Can be extended for domain-specific logic
-   - Retry logic pattern
-   - Monitoring and query capabilities
-
-#### 11.2.2 Technical Evaluation Outcomes
-
-**What This Implementation Validates**:
-- ✅ Spring Kafka + PostgreSQL integration works well
-- ✅ DB state table provides reliable idempotency
-- ✅ Business data enrichment pattern is effective
-- ✅ Transaction management ensures consistency
-- ✅ Pattern scales for high-volume event processing
-
-**Lessons Learned**:
-- Message state table is essential for reliability
-- Business data enrichment adds value to analytics
-- Transaction boundaries need careful design
-- Monitoring and observability are critical
-
-**Future Project Considerations**:
-- This pattern can be reused for other event-driven modules
-- DB state table design is generic enough for different domains
-- Spring Kafka integration provides good developer experience
-- Pattern supports both analytics and transactional use cases
-
-### 11.3 Message State Table Design
-
-**Table: `t_kafka_message_state`**
-
-**Purpose**: Track message processing state for:
-- Statistics events (current implementation)
-- Future event-driven modules (pattern validation)
-- Any other event-driven processing requiring state tracking
-
-**Key Fields**:
-- `topic`, `partition_id`, `offset`: Unique message identifier
-- `message_status`: Processing state (PENDING, PROCESSING, SUCCESS, FAILED, RETRY)
-- `retry_count`: Number of retry attempts
-- `error_message`: Error details for failed messages
-- `business_data`: JSONB field for storing business context
-
-**Benefits**:
-- ✅ Idempotency: Unique constraint prevents duplicate processing
-- ✅ Recovery: Query failed messages for retry
-- ✅ Monitoring: Track processing status and error rates
-- ✅ Audit: Store business context for debugging
-- ✅ Extensible: Can add domain-specific fields as needed
-
-### 11.4 Integration with Persistence Module
-
-**How It Works**:
-
-1. **QueryService Integration**:
-   ```java
-   // In Kafka Consumer
-   @Autowired
-   private QueryService queryService; // From persistence module
-   
-   // Query business data
-   String hql = "FROM ShortLink sl WHERE sl.fullShortUrl = :url";
-   List<ShortLink> links = queryService.query(hql, params);
-   ```
-
-2. **PersistenceService Integration**:
-   ```java
-   // In Message State Service
-   @Autowired
-   private PersistenceService persistenceService; // From persistence module
-   
-   // Save message state
-   KafkaMessageState state = persistenceService.save(newState);
-   ```
-
-3. **Transaction Management**:
-   ```java
-   @Transactional // Uses Spring transaction manager
-   public void processBatch(...) {
-       // DB operations are transactional
-       // Rollback on failure
-   }
-   ```
-
-**Benefits**:
-- Consistent with existing codebase patterns
-- Reuse existing DB connection pooling
-- Leverage existing transaction management
-- Easy to test (can mock QueryService/PersistenceService)
 
 ---
 
