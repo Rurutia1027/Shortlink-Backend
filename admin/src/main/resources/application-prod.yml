@@ -23,7 +23,7 @@ spring:
     redis:
       host: ${REDIS_HOST:redis.shortlink.svc.cluster.local}
       port: ${REDIS_PORT:6379}
-      password: ~
+      password: ${REDIS_PASSWORD:}
       # Note: password is intentionally not set - Redis server does not require authentication
       # Redisson will not attempt AUTH if spring.data.redis.password is not set
       # TODO: Future upgrade to Vault for password management
