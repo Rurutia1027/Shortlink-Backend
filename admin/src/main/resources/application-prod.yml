@@ -23,7 +23,10 @@ spring:
     redis:
       host: ${REDIS_HOST:redis.shortlink.svc.cluster.local}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:123456}
+      password: ${REDIS_PASSWORD:}
+      # Note: password is intentionally not set - Redis server does not require authentication
+      # Redisson will not attempt AUTH if spring.data.redis.password is not set
+      # TODO: Future upgrade to Vault for password management
       lettuce:
         cluster:
           refresh:
@@ -33,6 +36,17 @@ spring:
           max-idle: 8
           min-idle: 0
           max-wait: 3000ms
+  # Redisson configuration for connection timeout and retry
+  redisson:
+    config: |
+      singleServerConfig:
+        address: "redis://${REDIS_HOST:redis.shortlink.svc.cluster.local}:${REDIS_PORT:6379}"
+        connectionTimeout: 10000
+        timeout: 3000
+        retryAttempts: 3
+        retryInterval: 1500
+        connectionPoolSize: 10
+        connectionMinimumIdleSize: 5
 
 management:
   endpoints:
@@ -44,11 +58,7 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    root: INFO
-
-# Shortlink service configuration
+# Shortlink service configuration (prod: K8s service)
 shortlink:
   service:
     # K8s service name for internal communication
@@ -58,3 +68,7 @@ shortlink:
     connect-timeout: 5000  # milliseconds
     read-timeout: 10000    # milliseconds
     write-timeout: 10000   # milliseconds
+
+logging:
+  level:
+    root: INFO

@@ -16,7 +16,7 @@ import org.tus.common.domain.redis.impl.RedisServiceImpl;
  * <ul>
  *   <li>Business layer injects interfaces (DistributedLockService, BloomFilterService, CacheService)</li>
  *   <li>Configuration creates implementations via RedisService</li>
- *   <li>RedissonClient is auto-configured by redisson-spring-boot-starter</li>
+ *   <li>RedissonClient is auto-configured by redisson-spring-boot-starter based on application.yml settings</li>
  * </ul>
  * </p>
  */
@@ -25,6 +25,7 @@ public class AdminRedisConfig {
 
     /**
      * RedisService implementation backed by Redisson.
+     * RedissonClient is autoconfigured by redisson-spring-boot-starter from application.yml.
      * Business layer should not inject RedisService directly, but use specific services.
      */
     @Bean

@@ -12,4 +12,18 @@ spec:
       http:
         http1MaxPendingRequests: 100
         maxRequestsPerConnection: 100
-
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: dr-admin
+  namespace: istio-system
+spec:
+  host: admin.shortlink.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 100

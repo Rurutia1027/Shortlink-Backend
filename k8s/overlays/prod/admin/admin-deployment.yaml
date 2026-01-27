@@ -1,30 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: shortlink
+  name: admin
   namespace: shortlink
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: shortlink
+      app: admin
   template:
     metadata:
       labels:
-        app: shortlink
+        app: admin
     spec:
       containers:
-        - name: shortlink
-          image: nanachi1027/shortlink-shortlink:latest
+        - name: admin
+          image: nanachi1027/shortlink-admin:latest
           ports:
-            - containerPort: 8081
+            - containerPort: 8082
           env:
-            - name: SPRING_PROFILES_ACTIVE # enable prod
+            - name: SPRING_PROFILES_ACTIVE
               value: prod
-            - name: SHORTLINK_DOMAIN_DEFAULT
-              value: shortlink.tus  # shortlink.domain.default
+            - name: SERVER_PORT
+              value: "8082"
             - name: SHORTLINK_DB_URL
-              value: jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/shortlink
+              value: jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/admin
             - name: SHORTLINK_DB_USER
               value: admin
             - name: SHORTLINK_DB_PASSWORD
@@ -35,6 +35,8 @@ spec:
               value: "6379"
             - name: REDIS_PASSWORD
               value: "StrongRedisPass123!"
+            - name: SHORTLINK_SERVICE_URL
+              value: http://shortlink.shortlink.svc.cluster.local:8081
           resources:
             requests:
               memory: "512Mi"
@@ -44,16 +46,16 @@ spec:
               cpu: "500m"
           livenessProbe:
             httpGet:
-              path: /api/shortlink/actuator/health
-              port: 8081
+              path: /api/admin/actuator/health
+              port: 8082
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /api/shortlink/actuator/health
-              port: 8081
+              path: /api/admin/actuator/health
+              port: 8082
             initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3

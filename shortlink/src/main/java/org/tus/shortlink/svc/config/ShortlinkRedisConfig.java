@@ -1,8 +1,6 @@
 package org.tus.shortlink.svc.config;
 
 import org.redisson.api.RedissonClient;
-import org.redisson.spring.starter.RedissonAutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.tus.common.domain.redis.BloomFilterService;
@@ -19,14 +17,15 @@ import org.tus.common.domain.redis.impl.RedisServiceImpl;
  *     <li>Business layer injects interfaces (DistributedLockService, BloomFilterService,
  *     CacheService}</li>
  *     <li>Configuration creates implementation via RedisService</li>
- *     <li>RedissonClient is auto-configured by redisson-spring-boot-starter</li>
+ *     <li>RedissonClient is auto-configured by redisson-spring-boot-starter based on application.yml settings</li>
  * </ul>
  */
 @Configuration
-@AutoConfigureAfter(RedissonAutoConfiguration.class)
 public class ShortlinkRedisConfig {
+
     /**
-     * RedisService implementation backed bby Redisson.
+     * RedisService implementation backed by Redisson.
+     * RedissonClient is auto-configured by redisson-spring-boot-starter from application.yml.
      * Business layer should not inject RedisService directly, but use specific services.
      */
     @Bean
