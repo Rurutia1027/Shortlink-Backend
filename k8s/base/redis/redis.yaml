@@ -22,10 +22,27 @@ spec:
           volumeMounts:
             - name: redis-data
               mountPath: /data
-          command: ["redis-server", "--appendonly", "yes"]
-      volumes:
-        - name: redis-data
-          emptyDir: {}
+          command:
+            - redis-server
+            - "--appendonly"
+            - "yes"
+            - "--requirepass"
+            - "StrongRedisPass123!"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
 
 ---
 apiVersion: v1
