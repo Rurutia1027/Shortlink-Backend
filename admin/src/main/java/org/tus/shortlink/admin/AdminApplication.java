@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfigurat
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 @SpringBootApplication(exclude = {
-        HibernateJpaAutoConfiguration.class,
-        org.redisson.spring.starter.RedissonAutoConfiguration.class
+        HibernateJpaAutoConfiguration.class
 })
 @EntityScan(basePackages = {
         "org.tus.shortlink.admin.entity",

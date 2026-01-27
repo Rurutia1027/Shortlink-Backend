@@ -1,3 +1,4 @@
+bin/deploy-prod-checklist.md
 ./.env
 .env
 target/
