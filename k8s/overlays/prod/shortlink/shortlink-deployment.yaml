@@ -33,3 +33,28 @@ spec:
               value: redis.shortlink.svc.cluster.local
             - name: REDIS_PORT
               value: "6379"
+            - name: REDIS_PASSWORD
+              value: "StrongRedisPass123!"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/shortlink/actuator/health
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/shortlink/actuator/health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
