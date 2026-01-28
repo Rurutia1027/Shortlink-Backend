@@ -24,6 +24,16 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:StrongRedisPass123!}
+
+  # Kafka configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9002}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: shortLinkStatsRecord:org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO
+
 server:
   port: 8081
 
@@ -41,3 +51,13 @@ management:
 shortlink:
   domain:
     default: shortlink.tus
+
+# Kafka topic configuration
+kafka:
+  topics:
+    stats-events:
+      name: ${KAFKA_TOPIC_STATS_EVENTS:shortlink-stats-events}
+      partitions: ${KAFKA_TOPIC_STATS_EVENTS_PARTITIONS:20}
+      replication-factor: ${KAFKA_TOPIC_STATS_EVENTS_REPLICATION_FACTOR:3}
+  consumer:
+    group-id: ${KAFKA_CONSUMER_GROUP_ID:shortlink-stats-aggregator}

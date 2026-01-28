@@ -49,6 +49,9 @@
         <redisson.version>3.27.2</redisson.version>
         <fastjson2.version>2.0.36</fastjson2.version>
 
+        <!-- Kafka -->
+        <kafka.version>3.7.0</kafka.version>
+
         <!-- Test -->
         <jsoup.version>1.15.3</jsoup.version>
         <jmh.version>1.37</jmh.version>
@@ -156,6 +159,13 @@
                 <artifactId>postgresql</artifactId>
                 <version>1.20.3</version>
                 <scope>test</scope>
+            </dependency>
+
+            <!-- Kafka -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
