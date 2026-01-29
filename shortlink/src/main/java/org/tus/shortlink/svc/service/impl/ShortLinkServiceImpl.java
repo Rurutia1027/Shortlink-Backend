@@ -72,7 +72,6 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .and()
                 .eq("sl.delTime", 0L)
                 .build();
-
         Map<String, Object> params = builder.getInjectionParameters();
         builder.clear();
         List<ShortLink> results = queryService.query(hql, params);
@@ -81,26 +80,26 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Short link not found");
             return;
         }
-
         if (results.size() > 1) {
             log.warn("restoreUrl: multiple ShortLink for fullShortUrl={}", fullShortUrl);
         }
-
         ShortLink shortLink = results.get(0);
+
         ShortLinkStatsRecordDTO event = buildStatsRecordFromRequest(shortLink, httpRequest);
         shortLinkStatsEventPublisher.publish(event);
 
         String originUrl = shortLink.getOriginUrl();
         if (originUrl == null || originUrl.isBlank()) {
-            httpResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Original " +
-                    "URL missing");
+            httpResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Original URL missing");
+            return;
         }
-
+        final String redirectUrl;
         if (!originUrl.startsWith("http://") && !originUrl.startsWith("https://")) {
-            originUrl = "https://" + originUrl;
+            redirectUrl = "https://" + originUrl;
+        } else {
+            redirectUrl = originUrl;
         }
-
-        httpResponse.sendRedirect(originUrl);
+        httpResponse.sendRedirect(redirectUrl);
     }
 
     private ShortLinkStatsRecordDTO buildStatsRecordFromRequest(ShortLink shortLink, HttpServletRequest request) {
