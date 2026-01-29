@@ -14,32 +14,47 @@ import java.util.Date;
 public class ShortLinkStatsRecordDTO {
 
     /**
-     * 完整短链接
+     * Group ID
+     */
+    private String gid;
+
+    /**
+     * Full short url
      */
     private String fullShortUrl;
 
     /**
-     * 访问用户IP
+     * Visitor IP
      */
     private String remoteAddr;
 
     /**
-     * 操作系统
+     * Source (Referer)
+     */
+    private String referrer;
+
+    /**
+     * User Agent
+     */
+    private String userAgent;
+
+    /**
+     * Request os
      */
     private String os;
 
     /**
-     * 浏览器
+     * Request browser
      */
     private String browser;
 
     /**
-     * 操作设备
+     * Device info
      */
     private String device;
 
     /**
-     * 网络
+     * Network
      */
     private String network;
 
@@ -49,22 +64,22 @@ public class ShortLinkStatsRecordDTO {
     private String uv;
 
     /**
-     * UV访问标识
+     * UV First Flag
      */
     private Boolean uvFirstFlag;
 
     /**
-     * UIP访问标识
+     * UIP First Flag
      */
     private Boolean uipFirstFlag;
 
     /**
-     * 消息队列唯一标识
+     * Message Queue UID
      */
     private String keys;
 
     /**
-     * 当前时间
+     * current date
      */
     private Date currentDate;
 }

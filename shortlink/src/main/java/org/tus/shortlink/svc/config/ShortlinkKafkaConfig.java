@@ -25,7 +25,7 @@ public class ShortlinkKafkaConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    @Value("${kafka.topics.stats-events:shortlink-stats-events}")
+    @Value("${kafka.topics.stats-events.name:shortlink-stats-events}")
     private String statsEventsTopic;
 
     /**

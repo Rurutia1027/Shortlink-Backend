@@ -1,5 +1,6 @@
 package org.tus.shortlink.base.tookit;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.nio.charset.Charset;
@@ -155,5 +156,14 @@ public class StringUtils {
 
     public static boolean isValidUserDisplayName(String username) {
         return !INVALID_USER_DISPLAY_NAME_PATTERN.matcher(username).matches();
+    }
+
+    public static String getRemoteAddr(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(xff)) {
+            int comma = xff.indexOf(',');
+            return comma > 0 ? xff.substring(0, comma).trim() : xff.trim();
+        }
+        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "";
     }
 }

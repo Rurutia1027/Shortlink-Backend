@@ -19,6 +19,7 @@ import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
+import org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkCreateReqDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkPageReqDTO;
@@ -33,13 +34,17 @@ import org.tus.shortlink.base.tookit.StringUtils;
 import org.tus.shortlink.svc.entity.ShortLink;
 import org.tus.shortlink.svc.entity.ShortLinkGoto;
 import org.tus.shortlink.svc.service.ShortLinkService;
+import org.tus.shortlink.svc.service.ShortLinkStatsEventPublisher;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+
+import static org.tus.shortlink.base.tookit.StringUtils.getRemoteAddr;
 
 @Slf4j
 @Service
@@ -52,10 +57,74 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     @Autowired
     private final QueryService queryService;
 
+    private final ShortLinkStatsEventPublisher shortLinkStatsEventPublisher;
+
     @Override
+    @SneakyThrows
     public void restoreUrl(String shortUri, HttpServletRequest httpRequest,
                            HttpServletResponse httpResponse) {
-        // TODO
+        String fullShortUrl = createShortLinkDefaultDomain + "/" + shortUri;
+        HqlQueryBuilder builder = new HqlQueryBuilder();
+        String hql = builder
+                .fromAs(ShortLink.class, "sl")
+                .select("sl")
+                .eq("sl.fullShortUrl", fullShortUrl)
+                .and()
+                .eq("sl.delTime", 0L)
+                .build();
+
+        Map<String, Object> params = builder.getInjectionParameters();
+        builder.clear();
+        List<ShortLink> results = queryService.query(hql, params);
+
+        if (results == null || results.isEmpty()) {
+            httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "Short link not found");
+            return;
+        }
+
+        if (results.size() > 1) {
+            log.warn("restoreUrl: multiple ShortLink for fullShortUrl={}", fullShortUrl);
+        }
+
+        ShortLink shortLink = results.get(0);
+        ShortLinkStatsRecordDTO event = buildStatsRecordFromRequest(shortLink, httpRequest);
+        shortLinkStatsEventPublisher.publish(event);
+
+        String originUrl = shortLink.getOriginUrl();
+        if (originUrl == null || originUrl.isBlank()) {
+            httpResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Original " +
+                    "URL missing");
+        }
+
+        if (!originUrl.startsWith("http://") && !originUrl.startsWith("https://")) {
+            originUrl = "https://" + originUrl;
+        }
+
+        httpResponse.sendRedirect(originUrl);
+    }
+
+    private ShortLinkStatsRecordDTO buildStatsRecordFromRequest(ShortLink shortLink, HttpServletRequest request) {
+        String keys = UUID.randomUUID().toString();
+        String referrer = request.getHeader("Referer");
+        String userAgent = request.getHeader("User-Agent");
+        if (referrer == null) referrer = "";
+        if (userAgent == null) userAgent = "";
+        return ShortLinkStatsRecordDTO.builder()
+                .gid(shortLink.getGid())
+                .fullShortUrl(shortLink.getFullShortUrl())
+                .remoteAddr(getRemoteAddr(request))
+                .referrer(referrer)
+                .userAgent(userAgent)
+                .os("Unknown")
+                .browser("Unknown")
+                .device("Unknown")
+                .network("Unknown")
+                .uv(null)
+                .uvFirstFlag(Boolean.FALSE)
+                .uipFirstFlag(Boolean.FALSE)
+                .keys(keys)
+                .currentDate(new Date())
+                .build();
     }
 
     @SneakyThrows
