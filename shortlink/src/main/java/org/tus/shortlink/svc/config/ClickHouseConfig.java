@@ -1,5 +1,6 @@
 package org.tus.shortlink.svc.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import javax.sql.DataSource;
  * health check failures when CLICKHOUSE_URL is unset and url resolves to "").
  * JDBC is a standard way to query ClickHouse; alternative is HTTP client on port 8123.
  */
+@Slf4j
 @Configuration
 @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${clickhouse.url:}')")
 public class ClickHouseConfig {
@@ -27,7 +29,15 @@ public class ClickHouseConfig {
         DriverManagerDataSource ds = new DriverManagerDataSource();
         ds.setDriverClassName("com.clickhouse.jdbc.ClickHouseDriver");
         ds.setUrl(jdbcUrl);
+        log.info("ClickHouse datasource configured: url={}", maskUrl(jdbcUrl));
         return ds;
+    }
+
+    private static String maskUrl(String url) {
+        if (url == null || url.length() < 20) {
+            return url;
+        }
+        return url.replaceAll("://([^/]+)@", "://***@");
     }
 
     @Bean("clickHouseJdbcTemplate")
