@@ -64,6 +64,6 @@ kafka:
     group-id: ${KAFKA_CONSUMER_GROUP_ID:shortlink-stats-aggregator}
 
 ## ClickHouse (stats query; optional - stats API returns empty when not set)
-#clickhouse:
-#  url: ${CLICKHOUSE_URL:}
-#  database: ${CLICKHOUSE_DATABASE:shortlink_stats}
+clickhouse:
+  url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123}
+  database: ${CLICKHOUSE_DATABASE:shortlink_stats}

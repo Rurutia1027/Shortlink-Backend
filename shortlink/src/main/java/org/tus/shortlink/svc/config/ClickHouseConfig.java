@@ -1,7 +1,7 @@
 package org.tus.shortlink.svc.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,11 +11,14 @@ import javax.sql.DataSource;
 
 /**
  * ClickHouse datasource and JdbcTemplate for stats queries.
- * Only active when clickhouse.url is set.
+ * Only active when clickhouse.url is set and non-empty (avoids "No suitable driver"
+ * health check failures when CLICKHOUSE_URL is unset and url resolves to "").
+ * JDBC is a standard way to query ClickHouse; alternative is HTTP client on port 8123.
  */
-// @Configuration
-@ConditionalOnProperty(name = "clickhouse.url")
+@Configuration
+@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${clickhouse.url:}')")
 public class ClickHouseConfig {
+
     @Value("${clickhouse.url}")
     private String jdbcUrl;
 
