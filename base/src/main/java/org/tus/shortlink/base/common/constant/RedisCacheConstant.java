@@ -20,4 +20,9 @@ public class RedisCacheConstant {
      * User to token mapping key
      **/
     public static final String TOKEN_TO_USERNAME_KEY = "short-link:token-to-username:";
+
+    /**
+     * UIP cache key
+     */
+    public static final String UIP_KEY_PREFIX = "shortlink:stats:uip:";
 }

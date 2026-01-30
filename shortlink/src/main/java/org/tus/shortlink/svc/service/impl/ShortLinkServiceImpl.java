@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
+import org.tus.common.domain.redis.CacheService;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
@@ -38,18 +39,23 @@ import org.tus.shortlink.svc.service.ShortLinkStatsEventPublisher;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import static org.tus.shortlink.base.common.constant.RedisCacheConstant.UIP_KEY_PREFIX;
 import static org.tus.shortlink.base.tookit.StringUtils.getRemoteAddr;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShortLinkServiceImpl implements ShortLinkService {
+    private static final Duration UIP_TTL = Duration.ofDays(1);
 
     @Value("${shortlink.domain.default}")
     private String createShortLinkDefaultDomain;
@@ -58,6 +64,9 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     private final QueryService queryService;
 
     private final ShortLinkStatsEventPublisher shortLinkStatsEventPublisher;
+
+    @Autowired
+    private CacheService cacheService;
 
     @Override
     @SneakyThrows
@@ -85,7 +94,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         }
         ShortLink shortLink = results.get(0);
 
-        ShortLinkStatsRecordDTO event = buildStatsRecordFromRequest(shortLink, httpRequest);
+        String remoteAddr = getRemoteAddr(httpRequest);
+        boolean uipFirstFlag = resolveUipFirstFlag(shortLink.getFullShortUrl(), remoteAddr);
+        ShortLinkStatsRecordDTO event = buildStatsRecordFromRequest(shortLink, httpRequest,
+                uipFirstFlag);
+
         shortLinkStatsEventPublisher.publish(event);
 
         String originUrl = shortLink.getOriginUrl();
@@ -102,7 +115,30 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         httpResponse.sendRedirect(redirectUrl);
     }
 
-    private ShortLinkStatsRecordDTO buildStatsRecordFromRequest(ShortLink shortLink, HttpServletRequest request) {
+    /**
+     * Resolve UIP first-visit flag using Redis (1-day TTL), When Redis is unavailable,
+     * return false
+     */
+    private boolean resolveUipFirstFlag(String fullShortUrl, String remoteAddr) {
+        if (cacheService == null || !StringUtils.hasText(remoteAddr)) {
+            return false;
+        }
+        String dateStr = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String key = UIP_KEY_PREFIX + fullShortUrl + ":" + dateStr + ":" + remoteAddr;
+        try {
+            if (!cacheService.exists(key)) {
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            log.warn("UIP Redis check/set failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private ShortLinkStatsRecordDTO buildStatsRecordFromRequest(ShortLink shortLink,
+                                                                HttpServletRequest request,
+                                                                boolean uipFirstFlag) {
         String keys = UUID.randomUUID().toString();
         String referrer = request.getHeader("Referer");
         String userAgent = request.getHeader("User-Agent");
@@ -120,7 +156,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .network("Unknown")
                 .uv(null)
                 .uvFirstFlag(Boolean.FALSE)
-                .uipFirstFlag(Boolean.FALSE)
+                .uipFirstFlag(uipFirstFlag)
                 .keys(keys)
                 .currentDate(new Date())
                 .build();
