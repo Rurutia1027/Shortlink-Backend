@@ -173,6 +173,12 @@
                 <artifactId>kafka-clients</artifactId>
                 <version>${kafka.version}</version>
             </dependency>
+            <!-- ClickHouse -->
+            <dependency>
+                <groupId>com.clickhouse</groupId>
+                <artifactId>clickhouse-jdbc</artifactId>
+                <version>0.4.6</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
