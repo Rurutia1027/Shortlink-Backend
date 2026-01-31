@@ -31,13 +31,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Verify Docker (for Testcontainers)
+        run: docker info
+
       - name: Build Project (Skip Tests)
         run: |
           mvn clean compile -DskipTests -DskipITs
 
+      # Run only integration tests (*IT). Do NOT use -DskipTests: that skips Failsafe too.
+      # Use -P integration-only so Surefire is skipped but Failsafe runs (shortlink, redis).
       - name: Run Integration Tests (Failsafe)
         run: |
-          mvn verify -DskipTests  # Skip unit tests, run only integration tests (*IT.java)
+          mvn verify -P integration-only
 
       - name: List Test Results (Debug)
         if: always()
