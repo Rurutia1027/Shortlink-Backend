@@ -1,6 +1,7 @@
 package org.tus.shortlink.svc.service;
 
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsAccessDailyRespDTO;
+import org.tus.shortlink.base.dto.resp.ShortLinkStatsAccessRecordRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsBrowserRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsDeviceRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsNetworkRespDTO;
@@ -67,6 +68,21 @@ public interface ClickHouseStatsService {
      */
     TotalStats queryGroupTotalStats(String gid, LocalDate startDate, LocalDate endDate);
 
+    /**
+     * Paginated access records for one link from link_stats_events.
+     */
+    AccessRecordPage queryAccessRecords(String fullShortUrl, String gid, LocalDate startDate
+            , LocalDate endDate, int current, int size);
+
+    /**
+     * Paginated access records for a group from link_stats_events.
+     */
+    AccessRecordPage queryGroupAccessRecords(String gid, LocalDate startDate,
+                                             LocalDate endDate, int current, int size);
+
     record TotalStats(long pv, long uv, long uip) {
+    }
+
+    record AccessRecordPage(long total, List<ShortLinkStatsAccessRecordRespDTO> records) {
     }
 }

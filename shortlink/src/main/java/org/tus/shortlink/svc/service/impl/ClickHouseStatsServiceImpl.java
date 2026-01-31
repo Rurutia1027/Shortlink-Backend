@@ -6,15 +6,19 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsAccessDailyRespDTO;
+import org.tus.shortlink.base.dto.resp.ShortLinkStatsAccessRecordRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsBrowserRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsDeviceRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsNetworkRespDTO;
 import org.tus.shortlink.base.dto.resp.ShortLinkStatsOsRespDTO;
 import org.tus.shortlink.svc.service.ClickHouseStatsService;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,6 +36,7 @@ public class ClickHouseStatsServiceImpl implements ClickHouseStatsService {
 
     private static final String TABLE_DAILY = "link_stats_daily";
     private static final String TABLE_HOURLY = "link_stats_hourly";
+    private static final String TABLE_EVENTS = "link_stats_events";
     private static final String TABLE_BROWSER = "link_stats_browser_mv";
     private static final String TABLE_OS = "link_stats_os_mv";
     private static final String TABLE_DEVICE = "link_stats_device_mv";
@@ -246,5 +251,99 @@ public class ClickHouseStatsServiceImpl implements ClickHouseStatsService {
         } catch (NumberFormatException e) {
             return 0L;
         }
+    }
+
+    @Override
+    public ClickHouseStatsService.AccessRecordPage queryAccessRecords(
+            String fullShortUrl, String gid, LocalDate startDate, LocalDate endDate, int current, int size) {
+        final int page = current < 1 ? 1 : current;
+        final int pageSize = size < 1 ? 10 : size;
+        final int offset = (page - 1) * pageSize;
+        return getJdbcTemplate().map(tpl -> {
+            try {
+                String countSql = "SELECT count() AS cnt FROM " + TABLE_EVENTS +
+                        " WHERE full_short_url = ? AND gid = ? AND toDate(event_time) >= ? AND toDate(event_time) <= ?";
+                Long total = tpl.queryForObject(countSql, Long.class, fullShortUrl, gid, startDate, endDate);
+                if (total == null || total == 0) {
+                    return new ClickHouseStatsService.AccessRecordPage(0, Collections.emptyList());
+                }
+                String sql = "SELECT event_time, remote_addr, uv, os, browser, device, network, locale_code, country_code " +
+                        "FROM " + TABLE_EVENTS +
+                        " WHERE full_short_url = ? AND gid = ? AND toDate(event_time) >= ? AND toDate(event_time) <= ? " +
+                        "ORDER BY event_time DESC LIMIT ? OFFSET ?";
+                List<Map<String, Object>> rows = tpl.queryForList(sql, fullShortUrl, gid, startDate, endDate, pageSize, offset);
+                List<ShortLinkStatsAccessRecordRespDTO> records = new ArrayList<>();
+                for (Map<String, Object> row : rows) {
+                    records.add(mapRowToAccessRecord(row));
+                }
+                return new ClickHouseStatsService.AccessRecordPage(total, records);
+            } catch (Exception e) {
+                log.warn("ClickHouse queryAccessRecords failed: {}", e.getMessage());
+                return new ClickHouseStatsService.AccessRecordPage(0, Collections.emptyList());
+            }
+        }).orElse(new ClickHouseStatsService.AccessRecordPage(0, Collections.emptyList()));
+    }
+
+    @Override
+    public ClickHouseStatsService.AccessRecordPage queryGroupAccessRecords(
+            String gid, LocalDate startDate, LocalDate endDate, int current, int size) {
+        final int page = current < 1 ? 1 : current;
+        final int pageSize = size < 1 ? 10 : size;
+        final int offset = (page - 1) * pageSize;
+        return getJdbcTemplate().map(tpl -> {
+            try {
+                String countSql = "SELECT count() AS cnt FROM " + TABLE_EVENTS +
+                        " WHERE gid = ? AND toDate(event_time) >= ? AND toDate(event_time) <= ?";
+                Long total = tpl.queryForObject(countSql, Long.class, gid, startDate, endDate);
+                if (total == null || total == 0) {
+                    return new ClickHouseStatsService.AccessRecordPage(0, Collections.emptyList());
+                }
+                String sql = "SELECT event_time, full_short_url, remote_addr, uv, os, browser, device, network, locale_code, country_code " +
+                        "FROM " + TABLE_EVENTS +
+                        " WHERE gid = ? AND toDate(event_time) >= ? AND toDate(event_time) <= ? " +
+                        "ORDER BY event_time DESC LIMIT ? OFFSET ?";
+                List<Map<String, Object>> rows = tpl.queryForList(sql, gid, startDate, endDate, pageSize, offset);
+                List<ShortLinkStatsAccessRecordRespDTO> records = new ArrayList<>();
+                for (Map<String, Object> row : rows) {
+                    records.add(mapRowToAccessRecord(row));
+                }
+                return new ClickHouseStatsService.AccessRecordPage(total, records);
+            } catch (Exception e) {
+                log.warn("ClickHouse queryGroupAccessRecords failed: {}", e.getMessage());
+                return new ClickHouseStatsService.AccessRecordPage(0, Collections.emptyList());
+            }
+        }).orElse(new ClickHouseStatsService.AccessRecordPage(0, Collections.emptyList()));
+    }
+
+    private static ShortLinkStatsAccessRecordRespDTO mapRowToAccessRecord(Map<String, Object> row) {
+        Object et = row.get("event_time");
+        Date createTime = null;
+        if (et != null) {
+            if (et instanceof java.sql.Timestamp ts) {
+                createTime = Date.from(ts.toInstant());
+            } else if (et instanceof java.time.LocalDateTime ldt) {
+                createTime = Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
+            } else if (et instanceof Instant inst) {
+                createTime = Date.from(inst);
+            }
+        }
+        String locale = str(row.get("locale_code"));
+        if (locale == null || locale.isEmpty()) {
+            locale = str(row.get("country_code"));
+        }
+        return ShortLinkStatsAccessRecordRespDTO.builder()
+                .createTime(createTime)
+                .ip(str(row.get("remote_addr")))
+                .user(str(row.get("uv")))
+                .os(str(row.get("os")))
+                .browser(str(row.get("browser")))
+                .device(str(row.get("device")))
+                .network(str(row.get("network")))
+                .locale(locale)
+                .build();
+    }
+
+    private static String str(Object o) {
+        return o != null ? o.toString() : null;
     }
 }
