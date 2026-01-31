@@ -1,10 +1,10 @@
 package org.tus.shortlink.svc.config;
 
-import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.GenericContainer;
 
+import jakarta.annotation.PostConstruct;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -16,8 +16,8 @@ import java.util.List;
  * tables and materialized views, then inserts sample data for integration tests.
  */
 public class ClickHouseInitRunner {
+
     private final GenericContainer<?> container;
-    // avoid conflicting with local k8s http port
     private static final int HTTP_PORT = 8123;
 
     public ClickHouseInitRunner(GenericContainer<?> container) {
@@ -76,15 +76,15 @@ public class ClickHouseInitRunner {
                         "stat_date Date," +
                         "full_short_url String," +
                         "gid String," +
-                        "pv UInt64," +
-                        "uv UInt64," +
-                        "uip UInt64" +
-                        ") ENGINE = SummingMergeTree() PARTITION BY toYYYYMM(stat_date) ORDER BY (full_short_url, stat_date, gid)");
+                        "pv AggregateFunction(sum, UInt64)," +
+                        "uv AggregateFunction(uniqExact, String)," +
+                        "uip AggregateFunction(uniqExact, String)" +
+                        ") ENGINE = AggregatingMergeTree() PARTITION BY toYYYYMM(stat_date) ORDER BY (full_short_url, stat_date, gid)");
 
         jdbc.execute(
                 "CREATE MATERIALIZED VIEW IF NOT EXISTS link_stats_daily_mv TO link_stats_daily AS SELECT " +
                         "toDate(event_time) AS stat_date, full_short_url, gid, " +
-                        "count() AS pv, uniqExact(uv) AS uv, uniqExact(remote_addr) AS uip " +
+                        "sumState(toUInt64(1)) AS pv, uniqExactState(uv) AS uv, uniqExactState(remote_addr) AS uip " +
                         "FROM link_stats_events GROUP BY stat_date, full_short_url, gid");
 
         jdbc.execute(
@@ -125,9 +125,7 @@ public class ClickHouseInitRunner {
                         "FROM link_stats_events WHERE network != '' GROUP BY stat_date, full_short_url, gid, network");
     }
 
-    /**
-     * Insert about 10 events so daily/hourly/dimension and access-record queries return data.
-     */
+    /** Insert about 10 events so daily/hourly/dimension and access-record queries return data. */
     private static void insertSampleData(JdbcTemplate jdbc) {
         LocalDate base = LocalDate.of(2025, 1, 15);
         String url1 = "https://short.example/abc";
@@ -159,5 +157,4 @@ public class ClickHouseInitRunner {
                                 String network, String localeCode, String countryCode) {
         return new Object[]{Timestamp.valueOf(eventTime), fullShortUrl, gid, remoteAddr, uv, os, browser, device, network, localeCode, countryCode};
     }
-
 }

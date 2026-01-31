@@ -1,18 +1,18 @@
 package org.tus.shortlink.svc.config;
 
-import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.GenericContainer;
 
+import jakarta.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 /**
- * DDL-only init for Kafka -> ClickHouse IT:
- * - creates database shortlink_stats and tables/materialized views.
- * - No sample data; data is fed via Kafka and consumed into ClickHouse.
+ * DDL-only init for Kafka→ClickHouse IT: creates database shortlink_stats and
+ * tables/materialized views. No sample data; data is fed via Kafka and consumed into ClickHouse.
  */
 public class ClickHouseKafkaInitRunner {
+
     private final GenericContainer<?> container;
     private static final int HTTP_PORT = 8123;
 
@@ -71,15 +71,15 @@ public class ClickHouseKafkaInitRunner {
                         "stat_date Date," +
                         "full_short_url String," +
                         "gid String," +
-                        "pv UInt64," +
-                        "uv UInt64," +
-                        "uip UInt64" +
-                        ") ENGINE = SummingMergeTree() PARTITION BY toYYYYMM(stat_date) ORDER BY (full_short_url, stat_date, gid)");
+                        "pv AggregateFunction(sum, UInt64)," +
+                        "uv AggregateFunction(uniqExact, String)," +
+                        "uip AggregateFunction(uniqExact, String)" +
+                        ") ENGINE = AggregatingMergeTree() PARTITION BY toYYYYMM(stat_date) ORDER BY (full_short_url, stat_date, gid)");
 
         jdbc.execute(
                 "CREATE MATERIALIZED VIEW IF NOT EXISTS link_stats_daily_mv TO link_stats_daily AS SELECT " +
                         "toDate(event_time) AS stat_date, full_short_url, gid, " +
-                        "count() AS pv, uniqExact(uv) AS uv, uniqExact(remote_addr) AS uip " +
+                        "sumState(toUInt64(1)) AS pv, uniqExactState(uv) AS uv, uniqExactState(remote_addr) AS uip " +
                         "FROM link_stats_events GROUP BY stat_date, full_short_url, gid");
 
         jdbc.execute(
@@ -120,4 +120,3 @@ public class ClickHouseKafkaInitRunner {
                         "FROM link_stats_events WHERE network != '' GROUP BY stat_date, full_short_url, gid, network");
     }
 }
-

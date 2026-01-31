@@ -45,7 +45,7 @@ public class ClickHouseStatsServiceImpl implements ClickHouseStatsService {
     @Override
     public List<ShortLinkStatsAccessDailyRespDTO> queryDailyStats(
             String fullShortUrl, String gid, LocalDate startDate, LocalDate endDate) {
-        String sql = "SELECT stat_date, sum(pv) AS pv, sum(uv) AS uv, sum(uip) AS uip " +
+        String sql = "SELECT stat_date, sumMerge(pv) AS pv, uniqExactMerge(uv) AS uv, uniqExactMerge(uip) AS uip " +
                 "FROM " + TABLE_DAILY + " WHERE full_short_url = ? AND gid = ? " +
                 "AND stat_date >= ? AND stat_date <= ? GROUP BY stat_date, full_short_url, gid ORDER BY stat_date";
         return queryDaily(sql, fullShortUrl, gid, startDate, endDate, true);
@@ -54,7 +54,7 @@ public class ClickHouseStatsServiceImpl implements ClickHouseStatsService {
     @Override
     public List<ShortLinkStatsAccessDailyRespDTO> queryGroupDailyStats(
             String gid, LocalDate startDate, LocalDate endDate) {
-        String sql = "SELECT stat_date, sum(pv) AS pv, sum(uv) AS uv, sum(uip) AS uip " +
+        String sql = "SELECT stat_date, sumMerge(pv) AS pv, uniqExactMerge(uv) AS uv, uniqExactMerge(uip) AS uip " +
                 "FROM " + TABLE_DAILY + " WHERE gid = ? AND stat_date >= ? AND stat_date <= ? " +
                 "GROUP BY stat_date, gid ORDER BY stat_date";
         return queryDailyGroup(sql, gid, startDate, endDate);
@@ -116,7 +116,7 @@ public class ClickHouseStatsServiceImpl implements ClickHouseStatsService {
 
     @Override
     public TotalStats queryTotalStats(String fullShortUrl, String gid, LocalDate startDate, LocalDate endDate) {
-        String sql = "SELECT sum(pv) AS pv, sum(uv) AS uv, sum(uip) AS uip FROM " + TABLE_DAILY +
+        String sql = "SELECT sumMerge(pv) AS pv, uniqExactMerge(uv) AS uv, uniqExactMerge(uip) AS uip FROM " + TABLE_DAILY +
                 " WHERE full_short_url = ? AND gid = ? AND stat_date >= ? AND stat_date <= ?";
         return getJdbcTemplate().map(tpl -> {
             try {
@@ -137,7 +137,7 @@ public class ClickHouseStatsServiceImpl implements ClickHouseStatsService {
 
     @Override
     public TotalStats queryGroupTotalStats(String gid, LocalDate startDate, LocalDate endDate) {
-        String sql = "SELECT sum(pv) AS pv, sum(uv) AS uv, sum(uip) AS uip FROM " + TABLE_DAILY +
+        String sql = "SELECT sumMerge(pv) AS pv, uniqExactMerge(uv) AS uv, uniqExactMerge(uip) AS uip FROM " + TABLE_DAILY +
                 " WHERE gid = ? AND stat_date >= ? AND stat_date <= ?";
         return getJdbcTemplate().map(tpl -> {
             try {

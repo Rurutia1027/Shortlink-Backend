@@ -1,12 +1,10 @@
 package org.tus.shortlink.svc.integration;
 
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.deser.std.StringDeserializer;
 import org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO;
 
 import java.sql.Timestamp;
@@ -15,37 +13,32 @@ import java.util.Collections;
 import java.util.UUID;
 
 /**
- * Test helper: consumes stats events from Kafka and inserts them into ClickHouse
- * link_stats_events. Used by KafkaClickHouseStatsIT to validate the Kafka -> ClickHouse
- * pipeline.
+ * Test helper: consumes stats events from Kafka and inserts them into ClickHouse link_stats_events.
+ * Used by KafkaClickHouseStatsIT to validate the Kafka → ClickHouse pipeline.
  */
 public final class KafkaToClickHouseConsumer {
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final String INSERT_SQL = "INSERT INTO link_stats_events " +
-            "(event_time, full_short_url, gid, remote_addr, uv, os, browser, " +
-            "device, network, referrer, user_agent, country_code, " +
-            "locale_code, keys, http_status, redirect_latency_ms) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    private static final String INSERT_SQL = "INSERT INTO link_stats_events (event_time, full_short_url, gid, remote_addr, uv, os, browser, device, network, referrer, user_agent, country_code, locale_code, keys, http_status, redirect_latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private KafkaToClickHouseConsumer() {
     }
 
     /**
-     * Consume up to maxRecords from the topic (or until timeoutMs) and insert each into
-     * link_stats_events.
+     * Consume up to maxRecords from the topic (or until timeoutMs) and insert each into link_stats_events.
+     * UV/UIP correctness is ensured by CK: link_stats_daily uses AggregatingMergeTree with uniqExactState,
+     * so merge combines distinct counts correctly regardless of insert batch size.
      *
-     * @return number of records consumed and inserted.
+     * @return number of records consumed and inserted
      */
-    public static int drainAnsInsert(String bootstrapServers, String topic,
-                                     JdbcTemplate clickHouseJdbc,
+    public static int drainAndInsert(String bootstrapServers, String topic, JdbcTemplate clickHouseJdbc,
                                      int maxRecords, long timeoutMs) throws Exception {
         var props = new java.util.Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafka-clickhouse-it-" + UUID.randomUUID());
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-                StringDeserializer.class.getName());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-                StringDeserializer.class.getName());
+        // Use FQCN to avoid loading Testcontainers' shaded Jackson StringDeserializer
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         int inserted = 0;
@@ -59,10 +52,8 @@ public final class KafkaToClickHouseConsumer {
                     continue;
                 }
                 for (ConsumerRecord<String, String> record : records) {
-                    ShortLinkStatsRecordDTO dto = OBJECT_MAPPER.readValue(record.value(),
-                            ShortLinkStatsRecordDTO.class);
-                    Object[] row = toRow(dto);
-                    clickHouseJdbc.update(INSERT_SQL, row);
+                    ShortLinkStatsRecordDTO dto = OBJECT_MAPPER.readValue(record.value(), ShortLinkStatsRecordDTO.class);
+                    clickHouseJdbc.update(INSERT_SQL, toRow(dto));
                     inserted++;
                     if (inserted >= maxRecords) {
                         break;
@@ -88,8 +79,6 @@ public final class KafkaToClickHouseConsumer {
         String referrer = dto.getReferrer() != null ? dto.getReferrer() : "";
         String userAgent = dto.getUserAgent() != null ? dto.getUserAgent() : "";
         String keys = dto.getKeys() != null ? dto.getKeys() : "";
-        return new Object[]{eventTime, fullShortUrl, gid, remoteAddr,
-                uv, os, browser, device, network, referrer, userAgent, "", "",
-                keys, 0, 0};
+        return new Object[]{eventTime, fullShortUrl, gid, remoteAddr, uv, os, browser, device, network, referrer, userAgent, "", "", keys, 0, 0};
     }
 }
