@@ -2,6 +2,14 @@
 spring:
   application:
     name: shortlink-service
+  # Kafka configuration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: shortLinkStatsRecord:org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO
 
   datasource:
     driver-class-name: org.postgresql.Driver
@@ -24,16 +32,6 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:StrongRedisPass123!}
-
-  # Kafka configuration
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9002}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      properties:
-        spring.json.type.mapping: shortLinkStatsRecord:org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO
-
 server:
   port: 8081
 
@@ -53,11 +51,19 @@ shortlink:
     default: shortlink.tus
 
 # Kafka topic configuration
+# Set kafka.topics.stats-events.auto-create=true only when broker supports Admin API
+# (e.g. local dev). In K8s/prod create the topic via a Job; do not rely on app auto-create.
 kafka:
   topics:
     stats-events:
       name: ${KAFKA_TOPIC_STATS_EVENTS:shortlink-stats-events}
       partitions: ${KAFKA_TOPIC_STATS_EVENTS_PARTITIONS:20}
       replication-factor: ${KAFKA_TOPIC_STATS_EVENTS_REPLICATION_FACTOR:3}
+      auto-create: ${KAFKA_TOPIC_AUTO_CREATE:false}
   consumer:
     group-id: ${KAFKA_CONSUMER_GROUP_ID:shortlink-stats-aggregator}
+
+## ClickHouse (stats query; optional - stats API returns empty when not set)
+clickhouse:
+  url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123}
+  database: ${CLICKHOUSE_DATABASE:shortlink_stats}

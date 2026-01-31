@@ -55,6 +55,8 @@
         <!-- Test -->
         <jsoup.version>1.15.3</jsoup.version>
         <jmh.version>1.37</jmh.version>
+        <!-- When true (e.g. -P integration-only), skip Surefire so only Failsafe runs -->
+        <skip.surefire.tests>false</skip.surefire.tests>
     </properties>
 
     <!-- =========================
@@ -166,12 +168,17 @@
                 <version>1.20.3</version>
                 <scope>test</scope>
             </dependency>
-
             <!-- Kafka -->
             <dependency>
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
                 <version>${kafka.version}</version>
+            </dependency>
+            <!-- ClickHouse -->
+            <dependency>
+                <groupId>com.clickhouse</groupId>
+                <artifactId>clickhouse-jdbc</artifactId>
+                <version>0.4.6</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -232,6 +239,9 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>3.1.2</version>
+                    <configuration>
+                        <skipTests>${skip.surefire.tests}</skipTests>
+                    </configuration>
                 </plugin>
 
                 <!-- Integration Test -->
@@ -245,6 +255,13 @@
     </build>
 
     <profiles>
+        <!-- Run only integration tests (*IT): mvn verify -P integration-only -->
+        <profile>
+            <id>integration-only</id>
+            <properties>
+                <skip.surefire.tests>true</skip.surefire.tests>
+            </properties>
+        </profile>
         <profile>
             <id>docker-build</id>
             <build>
