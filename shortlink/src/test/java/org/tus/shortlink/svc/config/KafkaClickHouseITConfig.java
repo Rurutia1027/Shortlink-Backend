@@ -1,5 +1,6 @@
 package org.tus.shortlink.svc.config;
 
+
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,29 +18,50 @@ import org.tus.shortlink.svc.service.impl.ClickHouseStatsServiceImpl;
 
 import javax.sql.DataSource;
 
-/**
- * Test config for Kafka + ClickHouse integration test: Kafka container (from parent),
- * ClickHouse container, DDL-only init, ClickHouseStatsService, and Kafka publisher.
- * Use with a test that extends ShortlinkKafkaITConfig so Kafka bootstrap is set.
- */
 @Configuration
 @Import({ShortlinkKafkaConfig.class, KafkaTopicConfig.class})
 public class KafkaClickHouseITConfig {
     private static final String CLICKHOUSE_IMAGE = "clickhouse/clickhouse-server:24-alpine";
     private static final int HTTP_PORT = 8123;
 
-    @Bean(name = "clickHouseContainerKafka", initMethod = "start", destroyMethod = "stop")
+    /**
+     * Kafka broker list for CK kafka engine when containers share a network with alias
+     * "kafka".
+     */
+    private static final String KAFKA_BROKER_LIST_FOR_CK = "kafka:9092";
+
+    private static volatile GenericContainer<?> kafkaContainerForCK;
+    private static volatile GenericContainer<?> clickHouseContainerForCK;
+
+    /**
+     * Set containers from test (must share same network; Kafka must have alias "kafka").
+     * Call from test static block before context loads.
+     */
+    public static void setContainersForKafkaEngine(GenericContainer<?> kafka,
+                                                   GenericContainer<?> clickHouse) {
+        kafkaContainerForCK = kafka;
+        clickHouseContainerForCK = clickHouse;
+    }
+
+    @Bean(name = "clickHouseContainerKafka")
     public GenericContainer<?> clickHouseContainerKafka() {
-        return new GenericContainer<>(DockerImageName.parse(CLICKHOUSE_IMAGE))
+        if (clickHouseContainerForCK != null) {
+            return clickHouseContainerForCK; // lifecycle managed by test @Container
+        }
+        GenericContainer<?> c = new GenericContainer<>(DockerImageName.parse(CLICKHOUSE_IMAGE))
                 .withExposedPorts(HTTP_PORT)
                 .withEnv("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1");
+        c.start();
+        return c;
     }
 
     @Bean
     public ClickHouseKafkaInitRunner clickHouseKafkaInitRunner(
             @Qualifier("clickHouseContainerKafka") GenericContainer<?> clickHouseContainerKafka) {
-        return new ClickHouseKafkaInitRunner(clickHouseContainerKafka);
+        String kafkaBrokerList = (kafkaContainerForCK != null) ? KAFKA_BROKER_LIST_FOR_CK : "host.testcontainers.internal:9092";
+        return new ClickHouseKafkaInitRunner(clickHouseContainerKafka, kafkaBrokerList);
     }
+
 
     @Bean("clickHouseDataSource")
     public DataSource clickHouseDataSource(
@@ -63,8 +85,7 @@ public class KafkaClickHouseITConfig {
     public ClickHouseStatsService clickHouseStatsService(
             @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouseJdbcTemplate) {
         ClickHouseStatsServiceImpl service = new ClickHouseStatsServiceImpl();
-        ReflectionTestUtils.setField(service, "clickHouseJdbcTemplate",
-                clickHouseJdbcTemplate);
+        ReflectionTestUtils.setField(service, "clickHouseJdbcTemplate", clickHouseJdbcTemplate);
         return service;
     }
 

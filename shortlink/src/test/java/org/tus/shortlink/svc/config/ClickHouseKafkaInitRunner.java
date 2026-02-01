@@ -1,23 +1,28 @@
 package org.tus.shortlink.svc.config;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.GenericContainer;
 
-import jakarta.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 /**
- * DDL-only init for Kafka→ClickHouse IT: creates database shortlink_stats and
- * tables/materialized views. No sample data; data is fed via Kafka and consumed into ClickHouse.
+ * DDL-only init for Kafka→ClickHouse IT: creates database shortlink_stats,
+ * tables/materialized views, and ClickHouse Kafka engine table + MV to sync from Kafka topic.
+ * No sample data; data is fed via Kafka and CK pulls from topic into link_stats_events.
  */
 public class ClickHouseKafkaInitRunner {
 
     private final GenericContainer<?> container;
+    private final String kafkaBrokerList;
     private static final int HTTP_PORT = 8123;
+    private static final String TOPIC = "shortlink-stats-events";
+    private static final String KAFKA_GROUP = "clickhouse-shortlink-stats";
 
-    public ClickHouseKafkaInitRunner(GenericContainer<?> container) {
+    public ClickHouseKafkaInitRunner(GenericContainer<?> container, String kafkaBrokerList) {
         this.container = container;
+        this.kafkaBrokerList = kafkaBrokerList;
     }
 
     @PostConstruct
@@ -32,7 +37,7 @@ public class ClickHouseKafkaInitRunner {
 
         DataSource ds = dataSource(baseUrl + "/shortlink_stats");
         JdbcTemplate jdbc = new JdbcTemplate(ds);
-        runDdl(jdbc);
+        runDdl(jdbc, kafkaBrokerList);
     }
 
     private static DataSource dataSource(String url) {
@@ -42,7 +47,7 @@ public class ClickHouseKafkaInitRunner {
         return ds;
     }
 
-    private static void runDdl(JdbcTemplate jdbc) {
+    private static void runDdl(JdbcTemplate jdbc, String kafkaBrokerList) {
         jdbc.execute(
                 "CREATE TABLE IF NOT EXISTS link_stats_events (" +
                         "event_time DateTime DEFAULT now()," +
@@ -118,5 +123,28 @@ public class ClickHouseKafkaInitRunner {
                         "PARTITION BY toYYYYMM(stat_date) ORDER BY (full_short_url, stat_date, network) " +
                         "AS SELECT toDate(event_time) AS stat_date, full_short_url, gid, network, count() AS pv, uniqExact(uv) AS uv " +
                         "FROM link_stats_events WHERE network != '' GROUP BY stat_date, full_short_url, gid, network");
+
+        // Kafka engine table + MV: CK pulls from topic into link_stats_events (per clickhouse-kafka-engine-setup.md)
+        jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS link_stats_kafka (" +
+                        "gid String, fullShortUrl String, remoteAddr String, referrer String, userAgent String," +
+                        "os String, browser String, device String, network String, uv String," +
+                        "uvFirstFlag UInt8, uipFirstFlag UInt8, keys String, currentDate Nullable(Int64)" +
+                        ") ENGINE = Kafka SETTINGS " +
+                        "kafka_broker_list = '" + kafkaBrokerList.replace("'", "\\'") + "', " +
+                        "kafka_topic_list = '" + TOPIC + "', " +
+                        "kafka_group_name = '" + KAFKA_GROUP + "', " +
+                        "kafka_format = 'JSONEachRow', " +
+                        "kafka_num_consumers = 1, " +
+                        "kafka_max_block_size = 10000, " +
+                        "kafka_poll_timeout_ms = 1000");
+        jdbc.execute(
+                "CREATE MATERIALIZED VIEW IF NOT EXISTS link_stats_kafka_mv TO link_stats_events AS " +
+                        "SELECT if(currentDate IS NOT NULL AND currentDate != 0, toDateTime(currentDate / 1000), now()) AS event_time, " +
+                        "fullShortUrl AS full_short_url, gid, remoteAddr AS remote_addr, uv, os, browser, device, network, " +
+                        "ifNull(referrer, '') AS referrer, ifNull(userAgent, '') AS user_agent, " +
+                        "'' AS country_code, '' AS region, '' AS city, '' AS language_code, '' AS locale_code, " +
+                        "ifNull(keys, '') AS keys, toUInt16(0) AS http_status, toUInt32(0) AS redirect_latency_ms " +
+                        "FROM link_stats_kafka");
     }
 }
