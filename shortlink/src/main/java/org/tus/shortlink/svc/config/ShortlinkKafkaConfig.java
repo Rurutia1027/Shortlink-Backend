@@ -39,8 +39,9 @@ public class ShortlinkKafkaConfig {
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
 
-        // Performance tuning for high throughput
-        configProps.put(ProducerConfig.ACKS_CONFIG, "1"); // Leader acknowledgment (balance between latency and durability)
+        // Idempotence requires acks=all (Kafka validation)
+        configProps.put(ProducerConfig.ACKS_CONFIG, "all");
+        // between latency and durability)
         configProps.put(ProducerConfig.RETRIES_CONFIG, 3); // Retry 3 times on failure
         configProps.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384); // 16KB batch size
         configProps.put(ProducerConfig.LINGER_MS_CONFIG, 10); // Wait 10ms for batching
