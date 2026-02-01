@@ -36,6 +36,9 @@ spring:
           max-idle: 8
           min-idle: 0
           max-wait: 3000ms
+  # Kafka (Prod)        
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka.shortlink.svc.cluster.local:9092}
 
 management:
   endpoints:
@@ -50,6 +53,23 @@ management:
 logging:
   level:
     root: INFO
+# Kafka topic (prod)
+kafka:
+  topics:
+    stats-events:
+      name: ${KAFKA_TOPIC_STATS_EVENTS:shortlink-stats-events}
+      partitions: ${KAFKA_TOPIC_STATS_EVENTS_PARTITIONS:20}
+      replication-factor: ${KAFKA_TOPIC_STATS_EVENTS_REPLICATION_FACTOR:1}
+      auto-create: false
+
+# ClickHouse + CK Kafka sync (prod): CK pulls from Kafka topic into link_stats_events
+clickhouse:
+  url: ${CLICKHOUSE_URL:}
+  database: ${CLICKHOUSE_DATABASE:shortlink_stats}
+  kafka-sync-enabled: ${CLICKHOUSE_KAFKA_SYNC_ENABLED:false}
+  kafka-broker-list: ${CLICKHOUSE_KAFKA_BROKER_LIST:kafka.shortlink.svc.cluster.local:9092}
+  kafka-topic: ${CLICKHOUSE_KAFKA_TOPIC:shortlink-stats-events}
+  kafka-consumer-group: ${CLICKHOUSE_KAFKA_CONSUMER_GROUP:clickhouse-shortlink-stats}
 
 shortlink:
   domain:
