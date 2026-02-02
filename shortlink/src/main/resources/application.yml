@@ -64,6 +64,12 @@ kafka:
     group-id: ${KAFKA_CONSUMER_GROUP_ID:shortlink-stats-aggregator}
 
 ## ClickHouse (stats query; optional - stats API returns empty when not set)
+## When kafka-sync-enabled=true and url is set, Kafka engine table + MV will sync topic -> link_stats_events
 clickhouse:
-  url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123}
+  url: ${CLICKHOUSE_URL:jdbc:clickhouse:http://localhost:8123}
   database: ${CLICKHOUSE_DATABASE:shortlink_stats}
+  # CK Kafka engine: sync from topic into link_stats_events (only used when kafka-sync-enabled=true)
+  kafka-sync-enabled: ${CLICKHOUSE_KAFKA_SYNC_ENABLED:false}
+  kafka-broker-list: ${CLICKHOUSE_KAFKA_BROKER_LIST:localhost:9092}
+  kafka-topic: ${CLICKHOUSE_KAFKA_TOPIC:shortlink-stats-events}
+  kafka-consumer-group: ${CLICKHOUSE_KAFKA_CONSUMER_GROUP:clickhouse-shortlink-stats}
