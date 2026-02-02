@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.tus.common.domain.dao.HqlQueryBuilder;
 import org.tus.common.domain.model.PageResponse;
 import org.tus.common.domain.persistence.QueryService;
+import org.tus.common.domain.redis.BloomFilterService;
 import org.tus.common.domain.redis.CacheService;
+import org.tus.shortlink.base.common.constant.RedisConstant;
 import org.tus.shortlink.base.common.convention.exception.ServiceException;
 import org.tus.shortlink.base.dto.biz.ShortLinkStatsRecordDTO;
 import org.tus.shortlink.base.dto.req.ShortLinkBatchCreateReqDTO;
@@ -48,13 +50,12 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import static org.tus.shortlink.base.common.constant.RedisCacheConstant.UIP_KEY_PREFIX;
-import static org.tus.shortlink.base.tookit.StringUtils.getRemoteAddr;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShortLinkServiceImpl implements ShortLinkService {
+
+    private static final String UIP_KEY_PREFIX = "shortlink:stats:uip:";
     private static final Duration UIP_TTL = Duration.ofDays(1);
 
     @Value("${shortlink.domain.default}")
@@ -65,8 +66,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     private final ShortLinkStatsEventPublisher shortLinkStatsEventPublisher;
 
-    @Autowired
+    @Autowired(required = false)
     private CacheService cacheService;
+
+    @Autowired(required = false)
+    private BloomFilterService bloomFilterService;
 
     @Override
     @SneakyThrows
@@ -96,9 +100,8 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
         String remoteAddr = getRemoteAddr(httpRequest);
         boolean uipFirstFlag = resolveUipFirstFlag(shortLink.getFullShortUrl(), remoteAddr);
-        ShortLinkStatsRecordDTO event = buildStatsRecordFromRequest(shortLink, httpRequest,
-                uipFirstFlag);
 
+        ShortLinkStatsRecordDTO event = buildStatsRecordFromRequest(shortLink, httpRequest, uipFirstFlag);
         shortLinkStatsEventPublisher.publish(event);
 
         String originUrl = shortLink.getOriginUrl();
@@ -116,8 +119,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     }
 
     /**
-     * Resolve UIP first-visit flag using Redis (1-day TTL), When Redis is unavailable,
-     * return false
+     * Resolve UIP first-visit flag using Redis (1-day TTL). When Redis is unavailable, returns false.
      */
     private boolean resolveUipFirstFlag(String fullShortUrl, String remoteAddr) {
         if (cacheService == null || !StringUtils.hasText(remoteAddr)) {
@@ -127,6 +129,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         String key = UIP_KEY_PREFIX + fullShortUrl + ":" + dateStr + ":" + remoteAddr;
         try {
             if (!cacheService.exists(key)) {
+                cacheService.set(key, "1", UIP_TTL);
                 return true;
             }
             return false;
@@ -136,8 +139,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         }
     }
 
-    private ShortLinkStatsRecordDTO buildStatsRecordFromRequest(ShortLink shortLink,
-                                                                HttpServletRequest request,
+    private ShortLinkStatsRecordDTO buildStatsRecordFromRequest(ShortLink shortLink, HttpServletRequest request,
                                                                 boolean uipFirstFlag) {
         String keys = UUID.randomUUID().toString();
         String referrer = request.getHeader("Referer");
@@ -162,6 +164,15 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .build();
     }
 
+    private String getRemoteAddr(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(xff)) {
+            int comma = xff.indexOf(',');
+            return comma > 0 ? xff.substring(0, comma).trim() : xff.trim();
+        }
+        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "";
+    }
+
     @SneakyThrows
     @Override
     @Transactional
@@ -179,6 +190,25 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         String domain = createShortLinkDefaultDomain;
         String fullShortUrl = domain + "/" + shortLinkSuffix;
 
+        // Check Bloom Filter to avoid duplicate suffix (with retry mechanism)
+        int maxRetries = 10;
+        int retryCount = 0;
+        while (retryCount < maxRetries) {
+            if (!isSuffixExistsInBloomFilter(fullShortUrl)) {
+                break; // Suffix not exists, proceed
+            }
+            // Suffix might exist (false positive or real collision), regenerate
+            log.debug("Short link suffix collision detected (or false positive), regenerating: attempt {}/{}",
+                    retryCount + 1, maxRetries);
+            shortLinkSuffix = generateSuffix(requestParam);
+            fullShortUrl = domain + "/" + shortLinkSuffix;
+            retryCount++;
+        }
+
+        if (retryCount >= maxRetries) {
+            throw new ServiceException("Failed to generate unique short link suffix after " + maxRetries + " attempts");
+        }
+
         // --- build ShortLink entity ---
         ShortLink shortLink = ShortLink.builder()
                 .domain(domain)
@@ -194,27 +224,32 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .fullShortUrl(fullShortUrl)
                 .favicon(getFavicon(requestParam.getOriginUrl()))
                 .build();
-        // shortLink.setName(requestParam.getGid() + "-" + shortLinkSuffix);
 
         // --- build goto entity ---
         ShortLinkGoto linkGoto = ShortLinkGoto.builder()
                 .fullShortUrl(fullShortUrl)
                 .gid(requestParam.getGid())
                 .build();
-        // linkGoto.setName(requestParam.getGid() + "-" + shortLinkSuffix);
 
         try {
             // --- persist via Hibernate / QueryService ---
             queryService.save(shortLink);
             queryService.save(linkGoto);
-        } catch (Exception ex) {
-            // TODO bloom filter / duplicate short uri handling (pending redis module)
-            throw new ServiceException(String.format("Unique Shortlink generate failure=%s",
-                    fullShortUrl));
-        }
 
-        // TODO cache warm-up (pending redis module)
-        // TODO bloom filter add (pending redis module)
+            // Add to Bloom Filter after successful persistence
+            addSuffixToBloomFilter(fullShortUrl);
+
+            // TODO cache warm-up: add short link to cache for faster redirect lookup
+        } catch (DuplicateKeyException |
+                 org.hibernate.exception.ConstraintViolationException ex) {
+            // Database unique constraint violation - suffix collision detected
+            log.warn("Short link suffix collision detected in database: {}", fullShortUrl, ex);
+            // Regenerate and retry (up to maxRetries times)
+            throw new ServiceException(String.format("Short link suffix collision: %s. Please retry.", fullShortUrl));
+        } catch (Exception ex) {
+            log.error("Failed to persist short link: {}", fullShortUrl, ex);
+            throw new ServiceException(String.format("Failed to create short link: %s", ex.getMessage()));
+        }
         return ShortLinkCreateRespDTO.builder()
                 .fullShortUrl("http://" + fullShortUrl)
                 .originUrl(requestParam.getOriginUrl())
@@ -289,16 +324,35 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             // TODO: add this latter
             // verificationWhitelist(originUrl);
 
-            String shortUri = generateSuffix(
-                    ShortLinkCreateReqDTO.builder()
-                            .originUrl(originUrl)
-                            .build()
-            );
+            // Generate unique suffix with Bloom Filter check and retry
+            String shortUri;
+            String fullShortUrl;
+            int maxRetries = 10;
+            int retryCount = 0;
 
-            String fullShortUrl = StrBuilder.create(createShortLinkDefaultDomain)
-                    .append("/")
-                    .append(shortUri)
-                    .toString();
+            do {
+                shortUri = generateSuffix(
+                        ShortLinkCreateReqDTO.builder()
+                                .originUrl(originUrl)
+                                .build()
+                );
+                fullShortUrl = StrBuilder.create(createShortLinkDefaultDomain)
+                        .append("/")
+                        .append(shortUri)
+                        .toString();
+
+                // Check Bloom Filter to avoid duplicate suffix
+                if (!isSuffixExistsInBloomFilter(fullShortUrl)) {
+                    break; // Suffix not exists, proceed
+                }
+                // Suffix might exist (false positive or real collision), regenerate
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    throw new ServiceException(
+                            String.format("Failed to generate unique short link suffix for URL: %s after %d attempts",
+                                    originUrl, maxRetries));
+                }
+            } while (retryCount < maxRetries);
 
             ShortLink shortLink = ShortLink.builder()
                     .domain(createShortLinkDefaultDomain)
@@ -334,10 +388,28 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         try {
             queryService.saveAll(shortLinks);
             queryService.saveAll(shortLinkGotos);
-        } catch (DuplicateKeyException ex) {
-            // TODO: review error isolation strategy (partial success vs retry here!)
-            throw new ServiceException("Batch short link creation failed due to duplicate " +
-                    "key");
+
+            // Add all suffixes to Bloom Filter after successful persistence
+            if (bloomFilterService != null) {
+                String filterName = getBloomFilterName();
+                for (ShortLink shortLink : shortLinks) {
+                    try {
+                        bloomFilterService.add(filterName, shortLink.getFullShortUrl());
+                    } catch (Exception e) {
+                        log.warn("Failed to add short link suffix to Bloom Filter during batch create: {}, error: {}",
+                                shortLink.getFullShortUrl(), e.getMessage());
+                        // Non-critical error, continue with other items
+                    }
+                }
+            }
+        } catch (DuplicateKeyException |
+                 org.hibernate.exception.ConstraintViolationException ex) {
+            // Database unique constraint violation - suffix collision detected
+            log.warn("Batch short link creation failed due to duplicate key", ex);
+            throw new ServiceException("Batch short link creation failed due to duplicate suffix. Please retry.");
+        } catch (Exception ex) {
+            log.error("Batch short link creation failed", ex);
+            throw new ServiceException("Batch short link creation failed: " + ex.getMessage());
         }
 
         return ShortLinkBatchCreateRespDTO.builder()
@@ -508,23 +580,86 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     }
 
 
+    /**
+     * Generate short link suffix using hash algorithm.
+     *
+     * <p>Algorithm: originUrl + UUID -> Base62 hash
+     * This ensures uniqueness even for the same originUrl.
+     *
+     * @param requestParam Short link creation request
+     * @return Short link suffix (e.g., "abc123")
+     */
     private String generateSuffix(ShortLinkCreateReqDTO requestParam) {
-        String shorUri;
         String originUrl = requestParam.getOriginUrl();
+        // Append UUID to ensure uniqueness even for same originUrl
         originUrl += UUID.randomUUID().toString();
-        shorUri = HashUtil.hashToBase62(originUrl);
-        // TODO [Redis / Bloom Filter]:
-        // 1. The Bloom Filter is currently used to prevent short-link suffix collisions
-        //    and to protect against cache penetration.
-        // 2. In a later phase, this Bloom Filter should be migrated to Redis
-        //    (e.g., RedisBloom module or a custom bitmap-based implementation).
-        // 3. The Bloom Filter key should be isolated by domain or business dimension
-        //    to avoid global key pollution.
-        // 4. Consider a Bloom Filter warm-up strategy during service startup
-        //    (e.g., loading existing short links from the database into Redis).
-        // 5. Since Bloom Filter do not support deletion, false positives caused by
-        //    link expiration or deletion must be handled via a compensation strategy.
-        return shorUri;
+        return HashUtil.hashToBase62(originUrl);
+    }
+
+    /**
+     * Check if short link suffix exists in Bloom Filter.
+     *
+     * <p>Bloom Filter is used to prevent duplicate suffix generation and cache penetration.
+     * Note: Bloom Filter may return false positives, but never false negatives.
+     *
+     * @param fullShortUrl Full short URL (domain + suffix)
+     * @return true if suffix might exist (false positive possible), false if definitely not exists
+     */
+    private boolean isSuffixExistsInBloomFilter(String fullShortUrl) {
+        if (bloomFilterService == null) {
+            // Bloom Filter not available, skip check (fallback to database constraint)
+            return false;
+        }
+        try {
+            String filterName = getBloomFilterName();
+            return bloomFilterService.contains(filterName, fullShortUrl);
+        } catch (Exception e) {
+            log.warn("Bloom Filter check failed for suffix: {}, error: {}", fullShortUrl, e.getMessage());
+            // On error, assume not exists to allow database constraint to handle it
+            return false;
+        }
+    }
+
+    /**
+     * Add short link suffix to Bloom Filter after successful persistence.
+     *
+     * <p>This ensures future suffix generation can quickly check for duplicates.
+     *
+     * @param fullShortUrl Full short URL (domain + suffix)
+     */
+    private void addSuffixToBloomFilter(String fullShortUrl) {
+        if (bloomFilterService == null) {
+            log.debug("Bloom Filter service not available, skipping add operation");
+            return;
+        }
+        try {
+            String filterName = getBloomFilterName();
+            boolean added = bloomFilterService.add(filterName, fullShortUrl);
+            if (added) {
+                log.debug("Added short link suffix to Bloom Filter: {}", fullShortUrl);
+            } else {
+                // Element might already exist (false positive from previous check)
+                log.debug("Short link suffix already in Bloom Filter (or false positive): {}", fullShortUrl);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to add short link suffix to Bloom Filter: {}, error: {}",
+                    fullShortUrl, e.getMessage());
+            // Non-critical error, don't fail the request
+        }
+    }
+
+    /**
+     * Get Bloom Filter name for short link suffix deduplication.
+     *
+     * <p>Filter name is isolated by domain to avoid global key pollution.
+     * This allows different domains to have independent Bloom Filters.
+     *
+     * @return Bloom Filter name
+     */
+    private String getBloomFilterName() {
+        // Isolate by domain to avoid global key pollution
+        // Format: short-link:bloom:suffix:{domain}
+        return RedisConstant.SHORT_LINK_BLOOM_FILTER_SUFFIX + ":" + createShortLinkDefaultDomain;
     }
 
     @SneakyThrows

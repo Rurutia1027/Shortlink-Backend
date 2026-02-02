@@ -50,4 +50,13 @@ public class RedisConstant {
      * Short link creation lock key
      */
     public static final String SHORT_LINK_CREATE_LOCK_KEY = "short-link:lock:create";
+
+
+    /**
+     * Short link suffix Bloom Filter name prefix
+     * Used for: short link suffix deduplication, cache penetration protection.
+     * Format: short-link:bloom:suffix:{domain}
+     * Note: Filter name should be isolated by domain to avoid global key pollution.
+     */
+    public static final String SHORT_LINK_BLOOM_FILTER_SUFFIX = "short-link:bloom:suffix";
 }
