@@ -1,8 +1,11 @@
 package org.tus.shortlink.svc.config;
 
 import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.hibernate5.HibernateTransactionManager;
 import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -15,7 +18,26 @@ import java.util.Properties;
 @Configuration
 public class ShortlinkPersistenceConfig {
     /**
-     * Hibernate SessionFactory backed by Spring BOot DataSource.
+     * PostgreSQL DataSource (primary) for business data (t_link, etc.).
+     * Marked as @Primary so Hibernate/JPA uses this instead of ClickHouse DataSource.
+     */
+    @Bean
+    @Primary
+    public DataSource dataSource(
+            @Value("${spring.datasource.url}") String url,
+            @Value("${spring.datasource.username}") String username,
+            @Value("${spring.datasource.password}") String password,
+            @Value("${spring.datasource.driver-class-name}") String driverClassName) {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName(driverClassName);
+        ds.setUrl(url);
+        ds.setUsername(username);
+        ds.setPassword(password);
+        return ds;
+    }
+
+    /**
+     * Hibernate SessionFactory backed by PostgreSQL DataSource.
      * Schema is managed by Flyway, not Hibernate.
      */
     @Bean

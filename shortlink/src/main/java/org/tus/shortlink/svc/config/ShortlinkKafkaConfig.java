@@ -22,7 +22,7 @@ import java.util.Map;
  */
 @Configuration
 public class ShortlinkKafkaConfig {
-    @Value("${spring.kafka.bootstrap-servers}")
+    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
 
     @Value("${kafka.topics.stats-events.name:shortlink-stats-events}")

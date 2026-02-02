@@ -194,12 +194,14 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 .fullShortUrl(fullShortUrl)
                 .favicon(getFavicon(requestParam.getOriginUrl()))
                 .build();
+        // shortLink.setName(requestParam.getGid() + "-" + shortLinkSuffix);
 
         // --- build goto entity ---
         ShortLinkGoto linkGoto = ShortLinkGoto.builder()
                 .fullShortUrl(fullShortUrl)
                 .gid(requestParam.getGid())
                 .build();
+        // linkGoto.setName(requestParam.getGid() + "-" + shortLinkSuffix);
 
         try {
             // --- persist via Hibernate / QueryService ---
