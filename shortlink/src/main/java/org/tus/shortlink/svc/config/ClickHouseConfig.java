@@ -24,12 +24,20 @@ public class ClickHouseConfig {
     @Value("${clickhouse.url}")
     private String jdbcUrl;
 
+    @Value("${clickhouse.username:default}")
+    private String username;
+
+    @Value("${clickhouse.password:default}")
+    private String password;
+
     @Bean("clickHouseDataSource")
     public DataSource clickHouseDataSource() {
         DriverManagerDataSource ds = new DriverManagerDataSource();
         ds.setDriverClassName("com.clickhouse.jdbc.ClickHouseDriver");
         ds.setUrl(jdbcUrl);
-        log.info("ClickHouse datasource configured: url={}", maskUrl(jdbcUrl));
+        ds.setUsername(username);
+        ds.setPassword(password);
+        log.info("ClickHouse datasource configured: url={}, username={}", maskUrl(jdbcUrl), username);
         return ds;
     }
 
