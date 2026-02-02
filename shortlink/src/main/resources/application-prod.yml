@@ -64,9 +64,11 @@ kafka:
 
 # ClickHouse + CK Kafka sync (prod): CK pulls from Kafka topic into link_stats_events
 clickhouse:
-  url: ${CLICKHOUSE_URL:}
+  url: ${CLICKHOUSE_URL:jdbc:clickhouse://clickhouse.shortlink.svc.cluster.local:8123}
+  username: ${CLICKHOUSE_USERNAME:default}
+  password: ${CLICKHOUSE_PASSWORD:default}
   database: ${CLICKHOUSE_DATABASE:shortlink_stats}
-  kafka-sync-enabled: ${CLICKHOUSE_KAFKA_SYNC_ENABLED:false}
+  kafka-sync-enabled: ${CLICKHOUSE_KAFKA_SYNC_ENABLED:true}
   kafka-broker-list: ${CLICKHOUSE_KAFKA_BROKER_LIST:kafka.shortlink.svc.cluster.local:9092}
   kafka-topic: ${CLICKHOUSE_KAFKA_TOPIC:shortlink-stats-events}
   kafka-consumer-group: ${CLICKHOUSE_KAFKA_CONSUMER_GROUP:clickhouse-shortlink-stats}
@@ -74,10 +76,3 @@ clickhouse:
 shortlink:
   domain:
     default: shortlink.tus
-
-## ClickHouse (stats query; optional - stats API returns empty when not set)
-clickhouse:
-  url: ${CLICKHOUSE_URL:jdbc:clickhouse://clickhouse.shortlink.svc.cluster.local:8123}
-  username: ${CLICKHOUSE_USERNAME:default}
-  password: ${CLICKHOUSE_PASSWORD:default}
-  database: ${CLICKHOUSE_DATABASE:shortlink_stats}
