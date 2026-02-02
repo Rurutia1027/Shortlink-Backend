@@ -1,0 +1,188 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: shortlink-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - shortlink-network
+
+  # Redis Cache
+  redis:
+    image: redis:7
+    container_name: shortlink-redis
+    command: redis-server --requirepass StrongRedisPass123!
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "StrongRedisPass123!", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shortlink-network
+
+  # Zookeeper (for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: shortlink-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shortlink-network
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: shortlink-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shortlink-network
+
+  # Kafka Topic Initialization (runs once after Kafka is ready)
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: shortlink-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka to be ready...'
+        until kafka-broker-api-versions --bootstrap-server kafka:9092; do
+          sleep 2
+        done
+        echo 'Creating topic shortlink-stats-events...'
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic shortlink-stats-events \
+          --partitions 20 \
+          --replication-factor 1
+        echo 'Topic created successfully!'
+      "
+    networks:
+      - shortlink-network
+    restart: "no"
+
+  # ClickHouse
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.12-alpine
+    container_name: shortlink-clickhouse
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: default
+      CLICKHOUSE_DB: shortlink_stats
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native protocol
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - shortlink-network
+
+
+  # ClickHouse Initialization (runs once after ClickHouse and Kafka are ready)
+  clickhouse-init:
+    image: clickhouse/clickhouse-server:23.12-alpine
+    container_name: shortlink-clickhouse-init
+    depends_on:
+      clickhouse:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ./docker/clickhouse/init:/scripts:ro
+    command: >
+      sh -c "
+        echo 'Waiting for ClickHouse to be ready...'
+        for i in $$(seq 1 60); do
+          if clickhouse-client --host clickhouse --port 9000 --user default --password default -q 'SELECT 1' 2>/dev/null; then
+            echo 'ClickHouse is ready!'
+            break
+          fi
+          echo \"Attempt $$i/60: Waiting for ClickHouse...\"
+          sleep 2
+        done
+        
+        echo 'Running initialization scripts...'
+        echo 'Running 01_create_db.sql...'
+        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/01_create_db.sql 2>&1 || echo 'Database may already exist'
+        
+        echo 'Running 02_tables_mvs.sql...'
+        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/02_tables_mvs.sql 2>&1 || echo 'Tables may already exist'
+        
+        echo 'Running 03_kafka_sync.sql...'
+        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/03_kafka_sync.sql 2>&1 || echo 'Kafka engine may already exist'
+        
+        echo 'ClickHouse initialization completed!'
+      "
+    networks:
+      - shortlink-network
+    restart: "no"
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+
+networks:
+  shortlink-network:
+    driver: bridge
