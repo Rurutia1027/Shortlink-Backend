@@ -30,14 +30,25 @@ public class ClickHouseConfig {
     @Value("${clickhouse.password:default}")
     private String password;
 
+    @Value("${clickhouse.database:shortlink_stats}")
+    private String database;
+
     @Bean("clickHouseDataSource")
     public DataSource clickHouseDataSource() {
         DriverManagerDataSource ds = new DriverManagerDataSource();
         ds.setDriverClassName("com.clickhouse.jdbc.ClickHouseDriver");
-        ds.setUrl(jdbcUrl);
+        // Append database to URL if not already present
+        String finalUrl = jdbcUrl;
+        if (database != null && !database.isEmpty() && !jdbcUrl.contains("/" + database) && !jdbcUrl.contains("?database=")) {
+            // ClickHouse JDBC: jdbc:clickhouse://host:port/database
+            if (jdbcUrl.endsWith("/") || !jdbcUrl.contains("/")) {
+                finalUrl = jdbcUrl + (jdbcUrl.endsWith("/") ? "" : "/") + database;
+            }
+        }
+        ds.setUrl(finalUrl);
         ds.setUsername(username);
         ds.setPassword(password);
-        log.info("ClickHouse datasource configured: url={}, username={}", maskUrl(jdbcUrl), username);
+        log.info("ClickHouse datasource configured: url={}, username={}, database={}", maskUrl(finalUrl), username, database);
         return ds;
     }
 
