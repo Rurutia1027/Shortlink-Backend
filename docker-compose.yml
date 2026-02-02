@@ -67,17 +67,18 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9092:9092"
+      - "9092:9093"  # Map host 9092 to container 9093 (PLAINTEXT_HOST for localhost access)
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9093"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -108,6 +109,26 @@ services:
       - shortlink-network
     restart: "no"
 
+  # Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: shortlink-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shortlink-network
+
   # ClickHouse
   clickhouse:
     image: clickhouse/clickhouse-server:23.12-alpine
@@ -121,6 +142,8 @@ services:
       - "9000:9000"  # Native protocol
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.d/custom-config.xml:ro
+      - ./docker/clickhouse/users.xml:/etc/clickhouse-server/users.d/custom-users.xml:ro
     ulimits:
       nofile:
         soft: 262144
@@ -162,17 +185,17 @@ services:
           echo \"Attempt $$i/60: Waiting for ClickHouse...\"
           sleep 2
         done
-        
+      
         echo 'Running initialization scripts...'
         echo 'Running 01_create_db.sql...'
         clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/01_create_db.sql 2>&1 || echo 'Database may already exist'
-        
+      
         echo 'Running 02_tables_mvs.sql...'
         clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/02_tables_mvs.sql 2>&1 || echo 'Tables may already exist'
-        
+      
         echo 'Running 03_kafka_sync.sql...'
         clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/03_kafka_sync.sql 2>&1 || echo 'Kafka engine may already exist'
-        
+      
         echo 'ClickHouse initialization completed!'
       "
     networks:
