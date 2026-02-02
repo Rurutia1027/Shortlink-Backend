@@ -54,3 +54,10 @@ logging:
 shortlink:
   domain:
     default: shortlink.tus
+
+## ClickHouse (stats query; optional - stats API returns empty when not set)
+clickhouse:
+  url: ${CLICKHOUSE_URL:jdbc:clickhouse://clickhouse.shortlink.svc.cluster.local:8123}
+  username: ${CLICKHOUSE_USERNAME:default}
+  password: ${CLICKHOUSE_PASSWORD:default}
+  database: ${CLICKHOUSE_DATABASE:shortlink_stats}
