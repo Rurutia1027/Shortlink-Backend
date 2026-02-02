@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -9,17 +7,21 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: postgres
-      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin"]
       interval: 5s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - shortlink-network
 
@@ -27,11 +29,9 @@ services:
   redis:
     image: redis:7
     container_name: shortlink-redis
-    command: redis-server --appendonly yes --requirepass StrongRedisPass123!
+    command: redis-server --requirepass StrongRedisPass123!
     ports:
       - "6379:6379"
-    volumes:
-      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "StrongRedisPass123!", "ping"]
       interval: 5s
@@ -49,8 +49,6 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    volumes:
-      - zookeeper-data:/var/lib/zookeeper/data
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2181"]
       interval: 10s
@@ -69,7 +67,6 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Critical: Set advertised.listeners to localhost for local development
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -77,13 +74,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 168  # 7 days
-      KAFKA_LOG_SEGMENT_BYTES: 1073741824  # 1GB
-      KAFKA_COMPRESSION_TYPE: snappy
     ports:
       - "9092:9092"
-    volumes:
-      - kafka-data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
@@ -91,60 +83,6 @@ services:
       retries: 5
     networks:
       - shortlink-network
-
-  # ClickHouse
-  clickhouse:
-    image: clickhouse/clickhouse-server:23.12-alpine
-    container_name: shortlink-clickhouse
-    environment:
-      CLICKHOUSE_DB: default
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    ports:
-      - "8123:8123"  # HTTP interface
-      - "9000:9000"  # Native protocol
-      - "9009:9009"  # Interserver HTTP
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
-      - clickhouse-logs:/var/log/clickhouse-server
-      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
-      - ./docker/clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - shortlink-network
-
-  # ClickHouse Initialization (runs once after ClickHouse is ready)
-  clickhouse-init:
-    image: clickhouse/clickhouse-server:23.12-alpine
-    container_name: shortlink-clickhouse-init
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    volumes:
-      - ./docker/clickhouse/init:/scripts:ro
-    command: >
-      bash -c "
-        echo 'Waiting for ClickHouse to be ready...'
-        until clickhouse-client --host clickhouse --port 9000 --user default --password default -q 'SELECT 1' 2>/dev/null; do
-          sleep 2
-        done
-        echo 'ClickHouse is ready. Running initialization scripts...'
-        echo 'Running 01_create_db.sql...'
-        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/01_create_db.sql
-        echo 'Running 02_tables_mvs.sql...'
-        clickhouse-client --host clickhouse --port 9000 --user default --password default --database shortlink_stats --multiquery < /scripts/02_tables_mvs.sql
-        echo 'Running 03_kafka_sync.sql...'
-        clickhouse-client --host clickhouse --port 9000 --user default --password default --database shortlink_stats --multiquery < /scripts/03_kafka_sync.sql
-        echo 'ClickHouse initialization completed!'
-      "
-    networks:
-      - shortlink-network
-    restart: "no"
 
   # Kafka Topic Initialization (runs once after Kafka is ready)
   kafka-init:
@@ -170,13 +108,80 @@ services:
       - shortlink-network
     restart: "no"
 
+  # ClickHouse
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.12-alpine
+    container_name: shortlink-clickhouse
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: default
+      CLICKHOUSE_DB: shortlink_stats
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native protocol
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - shortlink-network
+
+
+  # ClickHouse Initialization (runs once after ClickHouse and Kafka are ready)
+  clickhouse-init:
+    image: clickhouse/clickhouse-server:23.12-alpine
+    container_name: shortlink-clickhouse-init
+    depends_on:
+      clickhouse:
+        condition: service_started
+      kafka:
+        condition: service_started
+    volumes:
+      - ./docker/clickhouse/init:/scripts:ro
+    command: >
+      sh -c "
+        echo 'Waiting for ClickHouse to be ready...'
+        for i in $$(seq 1 60); do
+          if clickhouse-client --host clickhouse --port 9000 --user default --password default -q 'SELECT 1' 2>/dev/null; then
+            echo 'ClickHouse is ready!'
+            break
+          fi
+          echo \"Attempt $$i/60: Waiting for ClickHouse...\"
+          sleep 2
+        done
+        
+        echo 'Running initialization scripts...'
+        echo 'Running 01_create_db.sql...'
+        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/01_create_db.sql 2>&1 || echo 'Database may already exist'
+        
+        echo 'Running 02_tables_mvs.sql...'
+        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/02_tables_mvs.sql 2>&1 || echo 'Tables may already exist'
+        
+        echo 'Running 03_kafka_sync.sql...'
+        clickhouse-client --host clickhouse --port 9000 --user default --password default --multiquery < /scripts/03_kafka_sync.sql 2>&1 || echo 'Kafka engine may already exist'
+        
+        echo 'ClickHouse initialization completed!'
+      "
+    networks:
+      - shortlink-network
+    restart: "no"
+
 volumes:
-  postgres-data:
-  redis-data:
-  zookeeper-data:
-  kafka-data:
-  clickhouse-data:
-  clickhouse-logs:
+  postgres_data:
+  clickhouse_data:
 
 networks:
   shortlink-network:
