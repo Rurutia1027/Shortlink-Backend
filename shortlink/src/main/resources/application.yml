@@ -71,7 +71,8 @@ clickhouse:
   password: ${CLICKHOUSE_PASSWORD:default}
   database: ${CLICKHOUSE_DATABASE:shortlink_stats}
   # CK Kafka engine: sync from topic into link_stats_events (only used when kafka-sync-enabled=true)
-  kafka-sync-enabled: ${CLICKHOUSE_KAFKA_SYNC_ENABLED:false}
+  # Set to true to enable ClickHouse Kafka engine (requires Kafka and ClickHouse running)
+  kafka-sync-enabled: ${CLICKHOUSE_KAFKA_SYNC_ENABLED:true}
   kafka-broker-list: ${CLICKHOUSE_KAFKA_BROKER_LIST:localhost:9092}
   kafka-topic: ${CLICKHOUSE_KAFKA_TOPIC:shortlink-stats-events}
   kafka-consumer-group: ${CLICKHOUSE_KAFKA_CONSUMER_GROUP:clickhouse-shortlink-stats}
