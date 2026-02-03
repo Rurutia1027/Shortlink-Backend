@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: shortlink-gateway
+  main:
+    web-application-type: reactive
 
   cloud:
     gateway:
