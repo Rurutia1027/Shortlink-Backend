@@ -2,7 +2,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-COPY target/gateway-*.jar app.jar
+COPY target/shortlink-gateway-1.0-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
