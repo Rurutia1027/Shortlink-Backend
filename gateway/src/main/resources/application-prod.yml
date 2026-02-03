@@ -1,0 +1,27 @@
+# Production configuration
+# Frontend -> Gateway (8080) -> Istio -> Backend Services
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        # In production, Gateway routes to Istio VirtualService
+        # Istio handles service discovery and routing
+        - id: admin-service
+          # Route to Istio ingress gateway or directly to K8s service
+          uri: ${GATEWAY_ADMIN_URI:http://admin.shortlink.svc.cluster.local:8082}
+        - id: shortlink-service
+          uri: ${GATEWAY_SHORTLINK_URI:http://shortlink.shortlink.svc.cluster.local:8081}
+        - id: restore-url
+          uri: ${GATEWAY_SHORTLINK_URI:http://shortlink.shortlink.svc.cluster.local:8081}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis.shortlink.svc.cluster.local}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+# Enable whitelist in production
+gateway:
+  whitelist:
+    enabled: true

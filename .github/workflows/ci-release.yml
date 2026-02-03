@@ -1,10 +1,10 @@
 name: Release (Build and Publish Docker Images)
 
 on:
-  workflow_run:
-    workflows: ["K8s Cluster Deployment"]
-    types:
-      - completed
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
