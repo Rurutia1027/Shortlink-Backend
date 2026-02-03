@@ -1,0 +1,111 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: shortlink-gateway
+
+  cloud:
+    gateway:
+      # Global CORS configuration
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      # Route configuration
+      routes:
+        # Admin service route
+        - id: admin-service
+          uri: ${GATEWAY_ADMIN_URI:http://localhost:8082}
+          predicates:
+            - Path=/api/shortlink/admin/**
+          filters:
+            - StripPrefix=0
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: ${GATEWAY_RATE_LIMIT_ADMIN:10}
+                redis-rate-limiter.burstCapacity: ${GATEWAY_RATE_LIMIT_ADMIN_BURST:20}
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - name: WhitelistFilter
+              args:
+                enabled: ${GATEWAY_WHITELIST_ENABLED:false}
+
+        # Shortlink service route
+        - id: shortlink-service
+          uri: ${GATEWAY_SHORTLINK_URI:http://localhost:8081}
+          predicates:
+            - Path=/api/shortlink/**
+          filters:
+            - StripPrefix=0
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: ${GATEWAY_RATE_LIMIT_SHORTLINK:100}
+                redis-rate-limiter.burstCapacity: ${GATEWAY_RATE_LIMIT_SHORTLINK_BURST:200}
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+            - name: WhitelistFilter
+              args:
+                enabled: ${GATEWAY_WHITELIST_ENABLED:false}
+
+        # Restore URL route (short URI redirect) - high rate limit
+        - id: restore-url
+          uri: ${GATEWAY_SHORTLINK_URI:http://localhost:8081}
+          predicates:
+            - Path=/api/shortlink/v1/{shortUri}
+            - Method=GET
+          filters:
+            - StripPrefix=0
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: ${GATEWAY_RATE_LIMIT_RESTORE:1000}
+                redis-rate-limiter.burstCapacity: ${GATEWAY_RATE_LIMIT_RESTORE_BURST:2000}
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+
+      # Default filters (applied to all routes)
+      # Note: Global filters are automatically applied, no need to list here
+
+  # Redis configuration for rate limiting
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 3000ms
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+# Logging
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.tus.shortlink.gateway: DEBUG
+    reactor.netty: INFO

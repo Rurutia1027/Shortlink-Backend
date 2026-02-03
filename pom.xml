@@ -27,6 +27,7 @@
         <module>redis</module>
         <module>flyway</module>
         <module>persistence</module>
+        <module>gateway</module>
     </modules>
 
     <!-- =========================
