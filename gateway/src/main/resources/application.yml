@@ -79,9 +79,10 @@ spring:
   # Redis configuration for rate limiting
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      # Single Redis node (default dev)
+      host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:StrongRedisPass123!}
       timeout: 3000ms
       lettuce:
         pool:
