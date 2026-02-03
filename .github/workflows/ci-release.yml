@@ -3,16 +3,12 @@ name: Release (Build and Publish Docker Images)
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build-and-publish:
     name: Build and Publish Docker Images
     runs-on: ubuntu-latest
-    # Only proceed if K8s deployment succeeded (or manual trigger)
-    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
 
     steps:
       # 1️⃣ Checkout code
