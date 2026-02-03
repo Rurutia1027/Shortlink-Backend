@@ -778,6 +778,152 @@
               ]
             }
           }]
+        },
+        {
+          "name": "Group - Create",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Group \" + Date.now()\n}"
+            },
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Create a new short link group. Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "List all groups for the current user. Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has group list', function () {",
+                "  pm.expect(json.data).to.be.an('array');",
+                "});",
+                "if (json && json.data && json.data.length > 0) {",
+                "  pm.environment.set('gid', json.data[0].gid || pm.environment.get('gid'));",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - Update",
+          "request": {
+            "method": "PUT",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"name\": \"Updated Group Name\"\n}"
+            },
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Update group name. Requires UserContext and gid."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group?gid={{gid}}",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"],
+              "query": [{
+                "key": "gid",
+                "value": "{{gid}}"
+              }]
+            },
+            "description": "Delete a group. Requires UserContext and gid."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - Sort",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"gid\": \"{{gid}}\",\n    \"sortOrder\": 1\n  }\n]"
+            },
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group/sort",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group", "sort"]
+            },
+            "description": "Sort groups. Requires UserContext."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
         }
       ]
     },
@@ -1091,6 +1237,65 @@
                 "pm.test('Response time < 100ms', function () {",
                 "  pm.expect(pm.response.responseTime).to.be.below(100);",
                 "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Group List via Gateway",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Test listing groups through Gateway. Gateway routes /api/shortlink/admin/** to admin service (8082). Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has group list', function () {",
+                "  pm.expect(json.data).to.be.an('array');",
+                "});",
+                "pm.test('Gateway routing works', function () {",
+                "  pm.expect(pm.response.responseTime).to.be.below(1000);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Group Create via Gateway",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gateway Test Group \" + Date.now()\n}"
+            },
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Test creating group through Gateway. Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
               ]
             }
           }]
