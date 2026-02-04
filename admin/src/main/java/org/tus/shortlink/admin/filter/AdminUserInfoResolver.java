@@ -1,7 +1,6 @@
 package org.tus.shortlink.admin.filter;
 
 import com.alibaba.fastjson2.JSON;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tus.common.domain.redis.CacheService;
@@ -74,13 +73,14 @@ public class AdminUserInfoResolver implements UserInfoResolver {
         // Step 1: Get username from reverse mapping (token -> username)
         // Step 2: Get user info from session hash (username -> {token: use_token})
         try {
-            String tokenToUsenameKey = RedisCacheConstant.TOKEN_TO_USERNAME_KEY + token;
-            String username = cacheService.get(tokenToUsenameKey, String.class);
+            String tokenToUsernameKey = RedisCacheConstant.TOKEN_TO_USERNAME_KEY + token;
+            String username = cacheService.get(tokenToUsernameKey, String.class);
 
             if (username == null || username.isBlank()) {
                 log.debug("No username found for token (token may be invalid for expired)");
                 return null;
             }
+            log.debug("Found username: {} for token", username);
             // Now we have username, get user info from session hash
             return getFromRedisSession(username, token);
         } catch (Exception e) {
@@ -96,17 +96,24 @@ public class AdminUserInfoResolver implements UserInfoResolver {
     private UserInfoDTO getFromRedisSession(String username, String token) {
         try {
             String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
+            log.debug("Looking up user session in Redis. Key: {}, Field: {}", loginKey, token);
             String userJson = cacheService.hget(loginKey, token, String.class);
 
             if (userJson != null && !userJson.isBlank()) {
                 User user = JSON.parseObject(userJson, User.class);
                 if (user != null) {
+                    log.debug("Successfully retrieved user from Redis session: {}", user.getUsername());
                     return UserInfoDTO.builder()
                             .userId(user.getId() != null ? user.getId().toString() : null)
                             .username(user.getUsername())
                             .realName(user.getRealName())
                             .build();
+                } else {
+                    log.warn("Failed to parse user JSON from Redis session. UserJson: {}", userJson);
                 }
+            } else {
+                log.warn("No user session found in Redis for username: {}, token: {}",
+                        username, token);
             }
         } catch (Exception e) {
             log.error("Failed to parse user info from Redis session for username: {}, token:" +

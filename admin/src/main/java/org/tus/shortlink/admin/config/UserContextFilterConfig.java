@@ -8,12 +8,26 @@ import org.springframework.core.Ordered;
 import org.tus.common.domain.redis.CacheService;
 import org.tus.shortlink.admin.filter.AdminUserInfoResolver;
 import org.tus.shortlink.base.biz.filter.UserContextFilter;
+import org.tus.shortlink.base.biz.filter.UserTransmitFilter;
 
 /**
- * Configuration for UserContext filter in admin module.
+ * Configuration for UserContext filters in admin module.
  *
- * <p>Registers UserContextFilter (from base module) with AdminUserInfoResolver to extract
- * user information from token and set it to UserContext.
+ * <p>Registers two filters for user context resolution:
+ * <ol>
+ *     <li>UserTransmitFilter: Reads user info from headers set by Gateway (preferred when using Gateway)</li>
+ *     <li>UserContextFilter: Extracts user info from token (fallback for direct access or when Gateway is not used)</li>
+ * </ol>
+ *
+ * <p>When requests come through Gateway:
+ * - Gateway's UserContextGatewayFilter extracts token and resolves user info
+ * - Gateway adds user info to request headers (X-Username, X-User-Id, X-Real-Name)
+ * - UserTransmitFilter reads these headers and sets UserContext
+ *
+ * <p>When requests come directly (bypassing Gateway):
+ * - UserContextFilter extracts token from request
+ * - AdminUserInfoResolver resolves user info from Redis
+ * - UserContextFilter sets UserContext
  *
  * <p>The filter uses strategy pattern:
  * - UserContextFilter (base): Generic token extraction logic
@@ -32,6 +46,21 @@ public class UserContextFilterConfig {
     }
 
     /**
+     * Register UserTransmitFilter to read user info from Gateway headers.
+     * This filter runs first and reads headers set by Gateway's UserContextGatewayFilter.
+     * Order: HIGHEST_PRECEDENCE to ensure it runs before UserContextFilter.
+     */
+    @Bean
+    public FilterRegistrationBean<Filter> userTransmitFilter() {
+        FilterRegistrationBean<Filter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new UserTransmitFilter());
+        registration.addUrlPatterns("/api/shortlink/admin/v1/*");
+        registration.setName("userTransmitFilter");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE); // Run first to read Gateway headers
+        return registration;
+    }
+
+    /**
      * Register UserContextFilter with AdminUserInfoResolver.
      * Order: HIGHEST_PRECEDENCE to ensure it runs early in the filter chain.
      */
@@ -41,7 +70,7 @@ public class UserContextFilterConfig {
         registration.setFilter(new UserContextFilter(userInfoResolver));
         registration.addUrlPatterns("/api/shortlink/admin/v1/*");
         registration.setName("userContextFilter");
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE); // Run first in filter chains
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1); // Run first in filter chains
         return registration;
     }
 }

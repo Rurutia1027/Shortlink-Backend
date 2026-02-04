@@ -47,10 +47,22 @@ public class UserContextFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
         try {
+
+            // Skip if user context already set (e.g., by UserTransmitFilter from Gateway
+            // headers)
+            if (UserContext.hasUser()) {
+                log.debug("User context already set, skipping token-based resolution.");
+                chain.doFilter(request, response);
+                return;
+            }
+
             // 1. Extract token from request
             String token = extractTokenFromRequest(httpRequest);
 
             if (StrUtil.isNotBlank(token)) {
+                log.debug("Token extracted from request: {} (length: {})",
+                        token.substring(0, Math.min(10, token.length())) + "...", token.length());
+
                 // 2. Resolver user information using strategy
                 UserInfoDTO userInfo = userInfoResolver.resolveUserInfo(token);
 
