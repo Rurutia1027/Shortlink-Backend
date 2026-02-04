@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: shortlink-gateway
+  # Force reactive web application type (required for Spring Cloud Gateway)
+  # This prevents Spring MVC from being auto-configured when base module brings in spring-boot-starter-web
   main:
     web-application-type: reactive
 
@@ -13,7 +15,10 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
+            # Use allowedOriginPatterns instead of allowedOrigins when allowCredentials is true
+            # This allows wildcard patterns while still supporting credentials
+            allowedOriginPatterns:
+              - "*"
             allowedMethods:
               - GET
               - POST
@@ -25,8 +30,27 @@ spring:
             maxAge: 3600
 
       # Route configuration
+      # IMPORTANT: Routes are matched in order. More specific routes should come first.
       routes:
-        # Admin service route
+        # Restore URL route (short URI redirect) - highest priority, most specific
+        # Must come before shortlink-service to avoid conflicts
+        - id: restore-url
+          uri: ${GATEWAY_SHORTLINK_URI:http://localhost:8081}
+          predicates:
+            - Path=/api/shortlink/v1/{shortUri}
+            - Method=GET
+          filters:
+            - StripPrefix=0
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: ${GATEWAY_RATE_LIMIT_RESTORE:1000}
+                redis-rate-limiter.burstCapacity: ${GATEWAY_RATE_LIMIT_RESTORE_BURST:2000}
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+
+        # Admin service route - must come before shortlink-service
+        # Routes all /api/shortlink/admin/** requests to admin service (8082)
+        # Includes: user (login, register, etc.), group, recycle-bin, and admin shortlink operations
         - id: admin-service
           uri: ${GATEWAY_ADMIN_URI:http://localhost:8082}
           predicates:
@@ -43,7 +67,8 @@ spring:
               args:
                 enabled: ${GATEWAY_WHITELIST_ENABLED:false}
 
-        # Shortlink service route
+        # Shortlink service route - catch-all for /api/shortlink/** (except admin and restore-url)
+        # Routes to shortlink service (8081) for direct shortlink operations
         - id: shortlink-service
           uri: ${GATEWAY_SHORTLINK_URI:http://localhost:8081}
           predicates:
@@ -60,29 +85,13 @@ spring:
               args:
                 enabled: ${GATEWAY_WHITELIST_ENABLED:false}
 
-        # Restore URL route (short URI redirect) - high rate limit
-        - id: restore-url
-          uri: ${GATEWAY_SHORTLINK_URI:http://localhost:8081}
-          predicates:
-            - Path=/api/shortlink/v1/{shortUri}
-            - Method=GET
-          filters:
-            - StripPrefix=0
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: ${GATEWAY_RATE_LIMIT_RESTORE:1000}
-                redis-rate-limiter.burstCapacity: ${GATEWAY_RATE_LIMIT_RESTORE_BURST:2000}
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@ipKeyResolver}"
-
       # Default filters (applied to all routes)
       # Note: Global filters are automatically applied, no need to list here
 
   # Redis configuration for rate limiting
   data:
     redis:
-      # Single Redis node (default dev)
-      host: ${REDIS_HOST:127.0.0.1}
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:StrongRedisPass123!}
       timeout: 3000ms

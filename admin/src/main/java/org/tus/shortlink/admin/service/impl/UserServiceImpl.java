@@ -293,7 +293,7 @@ public class UserServiceImpl implements UserService {
         List<User> results = queryService.query(hql, params);
 
         if (results == null || results.isEmpty()) {
-            throw new ClientException("用户不存在");
+            throw new ClientException("User Not Exist!");
         }
 
         if (results.size() > 1) {

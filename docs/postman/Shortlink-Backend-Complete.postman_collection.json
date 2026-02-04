@@ -1,11 +1,16 @@
 {
   "info": {
     "name": "Shortlink Backend - Complete API Test Suite",
-    "description": "Complete Postman collection for Shortlink Platform APIs.\n\nThis collection includes:\n- All CRUD operations for short links\n- Restore URL (redirect) functionality\n- Statistics endpoints\n- Batch operations\n- Trash/Recycle bin operations\n- User and Group management\n\nPrerequisites:\n- Redis cache and Bloom Filter are now implemented\n- All APIs should work as expected\n\nEnvironment Variables:\n- Import Shortlink-Backend.postman_environment.local.json\n- Or configure: admin_base_url, shortlink_base_url, domain, origin_url, gid",
+    "description": "Complete Postman collection for Shortlink Platform APIs.\n\nThis collection includes:\n- All CRUD operations for short links\n- Restore URL (redirect) functionality\n- Statistics endpoints\n- Batch operations\n- Trash/Recycle bin operations\n- User and Group management\n- Gateway endpoints (via Spring Cloud Gateway on port 8080)\n\nPrerequisites:\n- Redis cache and Bloom Filter are now implemented\n- Gateway service running on port 8080\n- All APIs should work as expected\n\nEnvironment Variables:\n- Import Shortlink-Backend.postman_environment.local.json\n- Or configure: gateway_base_url, admin_base_url, shortlink_base_url, domain, origin_url, gid",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "shortlink-complete-2026-02-02"
   },
   "variable": [
+    {
+      "key": "gateway_base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
     {
       "key": "admin_base_url",
       "value": "http://localhost:8082",
@@ -68,28 +73,19 @@
             "header": [],
             "url": {
               "raw": "{{admin_base_url}}/api/admin/actuator/health",
-              "host": [
-                "{{admin_base_url}}"
-              ],
-              "path": [
-                "api",
-                "admin",
-                "actuator",
-                "health"
-              ]
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "admin", "actuator", "health"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response time < 500ms', function () { pm.expect(pm.response.responseTime).to.be.below(500); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Response time < 500ms', function () { pm.expect(pm.response.responseTime).to.be.below(500); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Shortlink - Health Check",
@@ -98,28 +94,76 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/actuator/health",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "actuator",
-                "health"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "actuator", "health"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('Response time < 500ms', function () { pm.expect(pm.response.responseTime).to.be.below(500); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Response time < 500ms', function () { pm.expect(pm.response.responseTime).to.be.below(500); });"
+              ]
             }
-          ]
+          }]
+        },
+        {
+          "name": "Gateway - Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/actuator/health",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["actuator", "health"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Response time < 500ms', function () { pm.expect(pm.response.responseTime).to.be.below(500); });",
+                "let json = pm.response.json();",
+                "pm.test('Gateway is UP', function () { pm.expect(json.status).to.eql('UP'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Routes Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/actuator/gateway/routes",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["actuator", "gateway", "routes"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Routes exist', function () { pm.expect(json).to.be.an('array'); });",
+                "pm.test('Admin route exists', function () {",
+                "  let hasAdminRoute = json.some(r => r.route_id === 'admin-service');",
+                "  pm.expect(hasAdminRoute).to.be.true;",
+                "});",
+                "pm.test('Shortlink route exists', function () {",
+                "  let hasShortlinkRoute = json.some(r => r.route_id === 'shortlink-service');",
+                "  pm.expect(hasShortlinkRoute).to.be.true;",
+                "});",
+                "pm.test('Restore URL route exists', function () {",
+                "  let hasRestoreRoute = json.some(r => r.route_id === 'restore-url');",
+                "  pm.expect(hasRestoreRoute).to.be.true;",
+                "});"
+              ]
+            }
+          }]
         }
       ]
     },
@@ -128,216 +172,165 @@
       "item": [
         {
           "name": "Create Shortlink",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "// Generate unique origin URL for testing",
-                  "pm.environment.set('origin_url', 'https://example.com/test-' + Date.now());"
-                ]
-              }
+          "event": [{
+            "listen": "prerequest",
+            "script": {
+              "exec": [
+                "// Generate unique origin URL for testing",
+                "pm.environment.set('origin_url', 'https://example.com/test-' + Date.now());"
+              ]
             }
-          ],
+          }],
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"domain\": \"{{domain}}\",\n  \"originUrl\": \"{{origin_url}}\",\n  \"gid\": \"{{gid}}\",\n  \"createdType\": 0,\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\",\n  \"describe\": \"Test short link created via Postman\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/links/create",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "links",
-                "create"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "create"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Response has data', function () { pm.expect(json.data).to.be.an('object'); });",
-                  "if (json && json.data && json.data.fullShortUrl) {",
-                  "  pm.environment.set('full_short_url', json.data.fullShortUrl);",
-                  "  // Extract short URI from fullShortUrl",
-                  "  let fullUrl = json.data.fullShortUrl;",
-                  "  let shortUri = fullUrl.split('/').pop();",
-                  "  pm.environment.set('short_uri', shortUri);",
-                  "  pm.environment.set('gid', json.data.gid || pm.environment.get('gid'));",
-                  "}",
-                  "pm.test('fullShortUrl exists', function () { pm.expect(pm.environment.get('full_short_url')).to.be.ok; });",
-                  "pm.test('shortUri extracted', function () { pm.expect(pm.environment.get('short_uri')).to.be.ok; });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has data', function () { pm.expect(json.data).to.be.an('object'); });",
+                "if (json && json.data && json.data.fullShortUrl) {",
+                "  pm.environment.set('full_short_url', json.data.fullShortUrl);",
+                "  // Extract short URI from fullShortUrl",
+                "  let fullUrl = json.data.fullShortUrl;",
+                "  let shortUri = fullUrl.split('/').pop();",
+                "  pm.environment.set('short_uri', shortUri);",
+                "  pm.environment.set('gid', json.data.gid || pm.environment.get('gid'));",
+                "}",
+                "pm.test('fullShortUrl exists', function () { pm.expect(pm.environment.get('full_short_url')).to.be.ok; });",
+                "pm.test('shortUri extracted', function () { pm.expect(pm.environment.get('short_uri')).to.be.ok; });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Create Shortlink with Lock",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"domain\": \"{{domain}}\",\n  \"originUrl\": \"{{origin_url}}\",\n  \"gid\": \"{{gid}}\",\n  \"createdType\": 0,\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\",\n  \"describe\": \"Test short link created with distributed lock\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/links/create/lock",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "links",
-                "create",
-                "lock"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "create", "lock"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Response has data', function () { pm.expect(json.data).to.be.an('object'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has data', function () { pm.expect(json.data).to.be.an('object'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Batch Create Shortlinks",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"originUrls\": [\n    \"https://example.com/article1\",\n    \"https://example.com/article2\",\n    \"https://example.com/article3\"\n  ],\n  \"describes\": [\n    \"Article 1\",\n    \"Article 2\",\n    \"Article 3\"\n  ],\n  \"gid\": \"{{gid}}\",\n  \"createdType\": 0,\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/links/create/batch",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "links",
-                "create",
-                "batch"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "create", "batch"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Batch created successfully', function () {",
-                  "  pm.expect(json.data).to.be.an('object');",
-                  "  pm.expect(json.data.total).to.be.at.least(1);",
-                  "  pm.expect(json.data.baseLinkInfos).to.be.an('array');",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Batch created successfully', function () {",
+                "  pm.expect(json.data).to.be.an('object');",
+                "  pm.expect(json.data.total).to.be.at.least(1);",
+                "  pm.expect(json.data.baseLinkInfos).to.be.an('array');",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Restore URL (Redirect) - CRITICAL TEST",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  "// Ensure we have a short URI to test",
-                  "if (!pm.environment.get('short_uri')) {",
-                  "  pm.test('short_uri must be set', function () {",
-                  "    pm.expect.fail('Please run Create Shortlink first to set short_uri');",
-                  "  });",
-                  "}"
-                ]
-              }
+          "event": [{
+            "listen": "prerequest",
+            "script": {
+              "exec": [
+                "// Ensure we have a short URI to test",
+                "if (!pm.environment.get('short_uri')) {",
+                "  pm.test('short_uri must be set', function () {",
+                "    pm.expect.fail('Please run Create Shortlink first to set short_uri');",
+                "  });",
+                "}"
+              ]
             }
-          ],
+          }],
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/{{short_uri}}",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "{{short_uri}}"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "{{short_uri}}"]
             },
             "description": "This endpoint redirects short URI to original URL. It should:\n1. Look up the short link in database/cache\n2. Send redirect response (302/301)\n3. Publish stats event to Kafka\n4. Return original URL in Location header"
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 3xx redirect', function () {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([301, 302, 307, 308]);",
-                  "});",
-                  "pm.test('Location header exists', function () {",
-                  "  pm.expect(pm.response.headers.get('Location')).to.be.ok;",
-                  "});",
-                  "pm.test('Location header matches origin URL', function () {",
-                  "  let location = pm.response.headers.get('Location');",
-                  "  let originUrl = pm.environment.get('origin_url');",
-                  "  if (originUrl) {",
-                  "    pm.expect(location).to.include(originUrl.split('//')[1]);",
-                  "  }",
-                  "});",
-                  "pm.test('Response time < 100ms (with cache)', function () {",
-                  "  pm.expect(pm.response.responseTime).to.be.below(100);",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 3xx redirect', function () {",
+                "  pm.expect(pm.response.code).to.be.oneOf([301, 302, 307, 308]);",
+                "});",
+                "pm.test('Location header exists', function () {",
+                "  pm.expect(pm.response.headers.get('Location')).to.be.ok;",
+                "});",
+                "pm.test('Location header matches origin URL', function () {",
+                "  let location = pm.response.headers.get('Location');",
+                "  let originUrl = pm.environment.get('origin_url');",
+                "  if (originUrl) {",
+                "    pm.expect(location).to.include(originUrl.split('//')[1]);",
+                "  }",
+                "});",
+                "pm.test('Response time < 100ms (with cache)', function () {",
+                "  pm.expect(pm.response.responseTime).to.be.below(100);",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Restore URL - Invalid Short URI",
@@ -346,117 +339,84 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/invalid12345",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "invalid12345"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "invalid12345"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 404', function () { pm.response.to.have.status(404); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Error code indicates not found', function () {",
-                  "  pm.expect(json.code).to.be.oneOf(['SHORT_LINK_NOT_FOUND', '0']);",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 404', function () { pm.response.to.have.status(404); });",
+                "let json = pm.response.json();",
+                "pm.test('Error code indicates not found', function () {",
+                "  pm.expect(json.code).to.be.oneOf(['SHORT_LINK_NOT_FOUND', '0']);",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Update Shortlink",
           "request": {
             "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"originUrl\": \"https://example.com/updated-article\",\n  \"fullShortUrl\": \"{{full_short_url}}\",\n  \"originGid\": \"{{gid}}\",\n  \"gid\": \"{{gid}}\",\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\",\n  \"describe\": \"Updated via Postman\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/links/update",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "links",
-                "update"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "update"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Page Shortlinks",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"orderTag\": \"createTime\",\n  \"pageNo\": 1,\n  \"pageSize\": 10\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/links/page",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "links",
-                "page"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "page"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Response has pagination data', function () {",
-                  "  pm.expect(json.data).to.be.an('object');",
-                  "  pm.expect(json.data.records).to.be.an('array');",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has pagination data', function () {",
+                "  pm.expect(json.data).to.be.an('object');",
+                "  pm.expect(json.data.records).to.be.an('array');",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Group Count",
@@ -465,39 +425,27 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/links/gcount?groupIds={{gid}}",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "links",
-                "gcount"
-              ],
-              "query": [
-                {
-                  "key": "groupIds",
-                  "value": "{{gid}}"
-                }
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "gcount"],
+              "query": [{
+                "key": "groupIds",
+                "value": "{{gid}}"
+              }]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Response has group counts', function () {",
-                  "  pm.expect(json.data).to.be.an('array');",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has group counts', function () {",
+                "  pm.expect(json.data).to.be.an('array');",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Get URL Title",
@@ -506,35 +454,24 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/title?url={{origin_url}}",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "title"
-              ],
-              "query": [
-                {
-                  "key": "url",
-                  "value": "{{origin_url}}"
-                }
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "title"],
+              "query": [{
+                "key": "url",
+                "value": "{{origin_url}}"
+              }]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         }
       ]
     },
@@ -548,50 +485,29 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/stats?fullShortUrl={{full_short_url}}&gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "stats"
-              ],
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "stats"],
               "query": [
-                {
-                  "key": "fullShortUrl",
-                  "value": "{{full_short_url}}"
-                },
-                {
-                  "key": "gid",
-                  "value": "{{gid}}"
-                },
-                {
-                  "key": "startDate",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2026-12-31"
-                }
+                {"key": "fullShortUrl", "value": "{{full_short_url}}"},
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"}
               ]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Response has stats data', function () {",
-                  "  pm.expect(json.data).to.be.an('object');",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has stats data', function () {",
+                "  pm.expect(json.data).to.be.an('object');",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Group Short Link Stats",
@@ -600,44 +516,25 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/stats/group?gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "stats",
-                "group"
-              ],
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "stats", "group"],
               "query": [
-                {
-                  "key": "gid",
-                  "value": "{{gid}}"
-                },
-                {
-                  "key": "startDate",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2026-12-31"
-                }
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"}
               ]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Single Short Link Access Records",
@@ -646,60 +543,32 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/stats/access?fullShortUrl={{full_short_url}}&gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31&current=1&size=10",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "stats",
-                "access"
-              ],
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "stats", "access"],
               "query": [
-                {
-                  "key": "fullShortUrl",
-                  "value": "{{full_short_url}}"
-                },
-                {
-                  "key": "gid",
-                  "value": "{{gid}}"
-                },
-                {
-                  "key": "startDate",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2026-12-31"
-                },
-                {
-                  "key": "current",
-                  "value": "1"
-                },
-                {
-                  "key": "size",
-                  "value": "10"
-                }
+                {"key": "fullShortUrl", "value": "{{full_short_url}}"},
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"},
+                {"key": "current", "value": "1"},
+                {"key": "size", "value": "10"}
               ]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
-                  "pm.test('Response has paginated access records', function () {",
-                  "  pm.expect(json.data).to.be.an('object');",
-                  "  pm.expect(json.data.records).to.be.an('array');",
-                  "});"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has paginated access records', function () {",
+                "  pm.expect(json.data).to.be.an('object');",
+                "  pm.expect(json.data.records).to.be.an('array');",
+                "});"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Group Short Link Access Records",
@@ -708,53 +577,27 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/stats/group/access?gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31&current=1&size=10",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "stats",
-                "group",
-                "access"
-              ],
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "stats", "group", "access"],
               "query": [
-                {
-                  "key": "gid",
-                  "value": "{{gid}}"
-                },
-                {
-                  "key": "startDate",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2026-12-31"
-                },
-                {
-                  "key": "current",
-                  "value": "1"
-                },
-                {
-                  "key": "size",
-                  "value": "10"
-                }
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"},
+                {"key": "current", "value": "1"},
+                {"key": "size", "value": "10"}
               ]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         }
       ]
     },
@@ -765,42 +608,30 @@
           "name": "Save to Trash",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"fullShortUrl\": \"{{full_short_url}}\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/trash/save",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "trash",
-                "save"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "trash", "save"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "List Trash",
@@ -809,122 +640,82 @@
             "header": [],
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/trash/list?pageNum=1&pageSize=20",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "trash",
-                "list"
-              ],
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "trash", "list"],
               "query": [
-                {
-                  "key": "pageNum",
-                  "value": "1"
-                },
-                {
-                  "key": "pageSize",
-                  "value": "20"
-                }
+                {"key": "pageNum", "value": "1"},
+                {"key": "pageSize", "value": "20"}
               ]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Recover from Trash",
           "request": {
             "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"fullShortUrl\": \"{{full_short_url}}\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/trash/recover",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "trash",
-                "recover"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "trash", "recover"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Remove Permanently",
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"fullShortUrl\": \"{{full_short_url}}\"\n}"
             },
             "url": {
               "raw": "{{shortlink_base_url}}/api/shortlink/v1/trash/remove",
-              "host": [
-                "{{shortlink_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "v1",
-                "trash",
-                "remove"
-              ]
+              "host": ["{{shortlink_base_url}}"],
+              "path": ["api", "shortlink", "v1", "trash", "remove"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         }
       ]
     },
@@ -935,42 +726,30 @@
           "name": "Create via Admin Proxy",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"domain\": \"{{domain}}\",\n  \"originUrl\": \"{{origin_url}}\",\n  \"gid\": \"{{gid}}\",\n  \"createdType\": 0,\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\",\n  \"describe\": \"Created via admin proxy\"\n}"
             },
             "url": {
               "raw": "{{admin_base_url}}/api/shortlink/admin/v1/create",
-              "host": [
-                "{{admin_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "admin",
-                "v1",
-                "create"
-              ]
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "create"]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
         },
         {
           "name": "Admin Stats - Single",
@@ -979,48 +758,547 @@
             "header": [],
             "url": {
               "raw": "{{admin_base_url}}/api/shortlink/admin/v1/stats?fullShortUrl={{full_short_url}}&gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31",
-              "host": [
-                "{{admin_base_url}}"
-              ],
-              "path": [
-                "api",
-                "shortlink",
-                "admin",
-                "v1",
-                "stats"
-              ],
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "stats"],
               "query": [
-                {
-                  "key": "fullShortUrl",
-                  "value": "{{full_short_url}}"
-                },
-                {
-                  "key": "gid",
-                  "value": "{{gid}}"
-                },
-                {
-                  "key": "startDate",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2026-12-31"
-                }
+                {"key": "fullShortUrl", "value": "{{full_short_url}}"},
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"}
               ]
             }
           },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "let json = pm.response.json();",
-                  "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
-                ]
-              }
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
             }
-          ]
+          }]
+        },
+        {
+          "name": "Group - Create",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Group \" + Date.now()\n}"
+            },
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Create a new short link group. Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "List all groups for the current user. Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has group list', function () {",
+                "  pm.expect(json.data).to.be.an('array');",
+                "});",
+                "if (json && json.data && json.data.length > 0) {",
+                "  pm.environment.set('gid', json.data[0].gid || pm.environment.get('gid'));",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - Update",
+          "request": {
+            "method": "PUT",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"name\": \"Updated Group Name\"\n}"
+            },
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Update group name. Requires UserContext and gid."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group?gid={{gid}}",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"],
+              "query": [{
+                "key": "gid",
+                "value": "{{gid}}"
+              }]
+            },
+            "description": "Delete a group. Requires UserContext and gid."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Group - Sort",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"gid\": \"{{gid}}\",\n    \"sortOrder\": 1\n  }\n]"
+            },
+            "url": {
+              "raw": "{{admin_base_url}}/api/shortlink/admin/v1/group/sort",
+              "host": ["{{admin_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group", "sort"]
+            },
+            "description": "Sort groups. Requires UserContext."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "5. Gateway APIs (via Spring Cloud Gateway)",
+      "item": [
+        {
+          "name": "Gateway - Create Shortlink via Gateway",
+          "event": [{
+            "listen": "prerequest",
+            "script": {
+              "exec": [
+                "// Generate unique origin URL for testing",
+                "pm.environment.set('origin_url', 'https://example.com/gateway-test-' + Date.now());"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"{{domain}}\",\n  \"originUrl\": \"{{origin_url}}\",\n  \"gid\": \"{{gid}}\",\n  \"createdType\": 0,\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\",\n  \"describe\": \"Created via Gateway\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/v1/links/create",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "create"]
+            },
+            "description": "Test creating shortlink through Gateway. Gateway routes /api/shortlink/** to shortlink service (8081)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has data', function () { pm.expect(json.data).to.be.an('object'); });",
+                "if (json && json.data && json.data.fullShortUrl) {",
+                "  pm.environment.set('full_short_url', json.data.fullShortUrl);",
+                "  let fullUrl = json.data.fullShortUrl;",
+                "  let shortUri = fullUrl.split('/').pop();",
+                "  pm.environment.set('short_uri', shortUri);",
+                "  pm.environment.set('gid', json.data.gid || pm.environment.get('gid'));",
+                "}",
+                "pm.test('fullShortUrl exists', function () { pm.expect(pm.environment.get('full_short_url')).to.be.ok; });",
+                "pm.test('Response includes Gateway headers', function () {",
+                "  // Gateway may add custom headers",
+                "  pm.expect(pm.response.headers.has('X-Request-Id')).to.be.true;",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Restore URL (Redirect) via Gateway",
+          "event": [{
+            "listen": "prerequest",
+            "script": {
+              "exec": [
+                "// Ensure we have a short URI to test",
+                "if (!pm.environment.get('short_uri')) {",
+                "  pm.test('short_uri must be set', function () {",
+                "    pm.expect.fail('Please run Create Shortlink first to set short_uri');",
+                "  });",
+                "}"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/v1/{{short_uri}}",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "v1", "{{short_uri}}"]
+            },
+            "description": "Test restore URL through Gateway. Gateway routes /api/shortlink/v1/{shortUri} to shortlink service restore endpoint with high rate limit (1000 req/s)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 3xx redirect', function () {",
+                "  pm.expect(pm.response.code).to.be.oneOf([301, 302, 307, 308]);",
+                "});",
+                "pm.test('Location header exists', function () {",
+                "  pm.expect(pm.response.headers.get('Location')).to.be.ok;",
+                "});",
+                "pm.test('Response time < 200ms (Gateway + cache)', function () {",
+                "  pm.expect(pm.response.responseTime).to.be.below(200);",
+                "});",
+                "pm.test('Gateway adds X-Request-Id header', function () {",
+                "  pm.expect(pm.response.headers.has('X-Request-Id')).to.be.true;",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Admin Create via Gateway",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"{{domain}}\",\n  \"originUrl\": \"{{origin_url}}\",\n  \"gid\": \"{{gid}}\",\n  \"createdType\": 0,\n  \"validDateType\": 0,\n  \"validDate\": \"2026-12-31 23:59:59\",\n  \"describe\": \"Created via Admin through Gateway\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/admin/v1/create",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "create"]
+            },
+            "description": "Test admin create endpoint through Gateway. Gateway routes /api/shortlink/admin/** to admin service (8082) with rate limit (10 req/s)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Gateway routing works', function () {",
+                "  pm.expect(pm.response.responseTime).to.be.below(1000);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Page Shortlinks via Gateway",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gid\": \"{{gid}}\",\n  \"orderTag\": \"createTime\",\n  \"pageNo\": 1,\n  \"pageSize\": 10\n}"
+            },
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/v1/links/page",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "page"]
+            },
+            "description": "Test pagination endpoint through Gateway."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has pagination data', function () {",
+                "  pm.expect(json.data).to.be.an('object');",
+                "  pm.expect(json.data.records).to.be.an('array');",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Stats via Gateway",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/v1/stats?fullShortUrl={{full_short_url}}&gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "v1", "stats"],
+              "query": [
+                {"key": "fullShortUrl", "value": "{{full_short_url}}"},
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"}
+              ]
+            },
+            "description": "Test stats endpoint through Gateway."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - CORS Preflight (OPTIONS)",
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "http://localhost:3000"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "Content-Type"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/v1/links/create",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "v1", "links", "create"]
+            },
+            "description": "Test CORS preflight request through Gateway. Gateway should handle CORS globally."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 200 or 204', function () {",
+                "  pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                "});",
+                "pm.test('CORS headers present', function () {",
+                "  pm.expect(pm.response.headers.has('Access-Control-Allow-Origin')).to.be.true;",
+                "  pm.expect(pm.response.headers.has('Access-Control-Allow-Methods')).to.be.true;",
+                "});",
+                "pm.test('Access-Control-Allow-Origin is *', function () {",
+                "  let allowOrigin = pm.response.headers.get('Access-Control-Allow-Origin');",
+                "  pm.expect(allowOrigin).to.eql('*');",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Rate Limiting Test (Admin Route)",
+          "event": [{
+            "listen": "prerequest",
+            "script": {
+              "exec": [
+                "// This test sends multiple rapid requests to test rate limiting",
+                "// Admin route has rate limit: 10 req/s, burst: 20",
+                "pm.environment.set('rate_limit_test_count', 0);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/admin/v1/stats?fullShortUrl={{full_short_url}}&gid={{gid}}&startDate=2026-01-01&endDate=2026-12-31",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "stats"],
+              "query": [
+                {"key": "fullShortUrl", "value": "{{full_short_url}}"},
+                {"key": "gid", "value": "{{gid}}"},
+                {"key": "startDate", "value": "2026-01-01"},
+                {"key": "endDate", "value": "2026-12-31"}
+              ]
+            },
+            "description": "Test rate limiting on admin route. Send this request multiple times rapidly (use Collection Runner) to test rate limiting. After exceeding limit, should get 429 Too Many Requests."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "let count = parseInt(pm.environment.get('rate_limit_test_count') || '0') + 1;",
+                "pm.environment.set('rate_limit_test_count', count.toString());",
+                "if (pm.response.code === 429) {",
+                "  pm.test('Rate limit triggered (429)', function () {",
+                "    pm.expect(pm.response.code).to.eql(429);",
+                "  });",
+                "  pm.test('Rate limit response headers', function () {",
+                "    pm.expect(pm.response.headers.has('X-RateLimit-Remaining')).to.be.true;",
+                "  });",
+                "} else {",
+                "  pm.test('Request allowed (not rate limited)', function () {",
+                "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                "  });",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Invalid Route (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/invalid/route",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "invalid", "route"]
+            },
+            "description": "Test Gateway handling of invalid routes. Should return 404 Not Found."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 404', function () { pm.response.to.have.status(404); });",
+                "pm.test('Response time < 100ms', function () {",
+                "  pm.expect(pm.response.responseTime).to.be.below(100);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Group List via Gateway",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Test listing groups through Gateway. Gateway routes /api/shortlink/admin/** to admin service (8082). Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });",
+                "pm.test('Response has group list', function () {",
+                "  pm.expect(json.data).to.be.an('array');",
+                "});",
+                "pm.test('Gateway routing works', function () {",
+                "  pm.expect(pm.response.responseTime).to.be.below(1000);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Gateway - Group Create via Gateway",
+          "request": {
+            "method": "POST",
+            "header": [{
+              "key": "Content-Type",
+              "value": "application/json"
+            }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gateway Test Group \" + Date.now()\n}"
+            },
+            "url": {
+              "raw": "{{gateway_base_url}}/api/shortlink/admin/v1/group",
+              "host": ["{{gateway_base_url}}"],
+              "path": ["api", "shortlink", "admin", "v1", "group"]
+            },
+            "description": "Test creating group through Gateway. Requires UserContext (user must be logged in)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                "let json = pm.response.json();",
+                "pm.test('Result code is 0', function () { pm.expect(json.code).to.eql('0'); });"
+              ]
+            }
+          }]
         }
       ]
     }
