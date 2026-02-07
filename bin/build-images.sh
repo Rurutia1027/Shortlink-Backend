@@ -10,7 +10,7 @@ if [ -z "$TAG" ]; then
   exit 1
 fi
 
-modules=(shortlink flyway admin gateway identity)
+modules=(shortlink flyway admin gateway identity-service)
 
 # Build and push multi-arch images
 for module in "${modules[@]}"; do
