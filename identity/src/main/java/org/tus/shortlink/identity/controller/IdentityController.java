@@ -10,7 +10,7 @@ import org.tus.shortlink.base.biz.UserInfoDTO;
 import org.tus.shortlink.base.common.convention.exception.ClientException;
 import org.tus.shortlink.base.common.convention.result.Result;
 import org.tus.shortlink.base.common.convention.result.Results;
-import org.tus.shortlink.identity.dto.req.TokenValidationRequest;
+import org.tus.shortlink.identity.dto.req.TokenValidateRequest;
 import org.tus.shortlink.identity.service.IdentityService;
 
 /**
@@ -47,7 +47,7 @@ public class IdentityController {
      * @return Result containing UserInfoDTO if token is valid, error otherwise
      */
     @PostMapping("/validate")
-    public Result validateToken(@RequestBody TokenValidationRequest request) {
+    public Result validateToken(@RequestBody TokenValidateRequest request) {
         log.debug("Received token validation request");
         if (request == null || request.getToken().isBlank()) {
             return Results.failure(new ClientException("Token is required"));

@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TokenValidationRequest {
+public class TokenValidateRequest {
     /**
      * Authentication token to validate
      * Can be UUID token, JWT token, or session ID
