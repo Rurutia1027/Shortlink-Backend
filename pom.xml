@@ -22,7 +22,8 @@
         <module>base</module>
         <module>persistence</module>
         <module>redis</module>
-        <module>identity</module>
+        <module>identity-api</module>
+        <module>identity-service</module>
         <module>admin</module>
         <module>shortlink</module>
         <module>gateway</module>
