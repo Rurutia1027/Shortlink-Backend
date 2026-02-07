@@ -1,0 +1,40 @@
+# Identity Module Configuration (Development)
+# When Identity module is included in same application (library mode)
+
+server:
+  port: 8083
+
+spring:
+  application:
+    name: identity-service
+
+  data:
+    redis:
+      # Single Redis node (default dev)
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:StrongRedisPass123!}
+
+# Identity Service Configuration
+# When Identity Service is deployed as a separate service, configure base-url
+# When Identity module is included in same application, leave base-url empty (use in-process client)
+identity:
+  service:
+    # Separate deployment: http://identity-service.identity.svc.cluster.local:8083
+    # Local dev (separate): http://localhost:8083
+    # Same application: leave empty or comment out (default: use in-process client)
+    # base-url: ${IDENTITY_SERVICE_URL:}
+    connect-timeout: 2000  # milliseconds
+    read-timeout: 3000     # milliseconds
+    write-timeout: 2000    # milliseconds
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      base-path: /api/identity/actuator
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

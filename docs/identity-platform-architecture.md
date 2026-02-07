@@ -153,68 +153,249 @@ public Result<ShortLinkCreateRespDTO> createShortLink(...) {
 
 ---
 
-## Token Lifecycle Management
+## Token Lifecycle Management: IAM vs IDM
 
-Different identity platforms handle token lifecycle differently:
+**Critical Distinction**: IAM and IDM handle authentication and authorization **fundamentally differently**, and this is reflected in their token/credential usage.
 
-### 1. **Stateless Tokens (JWT-based)**
+### IAM: No Traditional User Tokens
+
+**Key Point**: IAM systems **do NOT use traditional user tokens** (JWT, Session tokens) for authentication. Instead, they use **credentials** and **temporary security tokens**.
+
+#### Why IAM Doesn't Use User Tokens
+
+1. **Service-to-Service Focus**: IAM manages **infrastructure access**, not user sessions
+2. **No User Sessions**: Services don't maintain user sessions like applications do
+3. **Policy-Based**: Access is determined by **policies**, not tokens with embedded permissions
+4. **Temporary Credentials**: Uses short-lived credentials (STS tokens) for security
+
+#### IAM Credential Types
+
+**1. Service Account Keys (Long-term Credentials)**
+```
+Generation → Storage → API Calls → Rotation
+     ↓          ↓          ↓           ↓
+  Key pair   Secure      Sign      Periodic
+  created    storage     requests  rotation
+```
+
+**Characteristics**:
+- **Type**: Access Key ID + Secret Access Key (AWS), Service Account JSON (GCP)
+- **Lifetime**: Long-lived (months/years), rotated periodically
+- **Storage**: Secure key management (AWS Secrets Manager, GCP Secret Manager)
+- **Usage**: Service-to-service API calls
+- **Revocation**: Delete/disable key pair
+
+**Example (AWS)**:
+```json
+{
+  "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",
+  "SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+}
+```
+
+**Database Schema** (if storing metadata):
+```sql
+CREATE TABLE t_iam_service_account (
+    id BIGINT PRIMARY KEY,
+    account_id VARCHAR(128) UNIQUE,  -- AWS Access Key ID
+    account_name VARCHAR(128),
+    service_name VARCHAR(128),  -- Which service uses this
+    created_at DATETIME,
+    last_rotated_at DATETIME,
+    next_rotation_at DATETIME,
+    enabled BOOLEAN DEFAULT TRUE
+);
+
+-- Note: Secret keys are NEVER stored in database
+-- They are stored in secure key management systems
+```
+
+**2. Temporary Security Tokens (STS Tokens)**
+```
+Assume Role → STS Token → API Calls → Expiration
+     ↓           ↓           ↓            ↓
+  Request    Temporary   Use token    Token
+  role       token       for API      expires
+  access     issued      calls        (15min-1hr)
+```
+
+**Characteristics**:
+- **Type**: Temporary credentials (AWS STS, GCP Workload Identity)
+- **Lifetime**: Short-lived (15 minutes to 1 hour)
+- **Storage**: In-memory, never persisted
+- **Usage**: Temporary access to resources
+- **Revocation**: Token expires automatically
+
+**Example (AWS STS)**:
+```json
+{
+  "AccessKeyId": "ASIAIOSFODNN7EXAMPLE",
+  "SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  "SessionToken": "FQoGZXIvYXdzEJr...",
+  "Expiration": "2024-01-01T12:00:00Z"
+}
+```
+
+**Database Schema** (if tracking):
+```sql
+CREATE TABLE t_iam_sts_token (
+    id BIGINT PRIMARY KEY,
+    token_id VARCHAR(128) UNIQUE,
+    role_arn VARCHAR(512),  -- Which role was assumed
+    issued_at DATETIME,
+    expires_at DATETIME,
+    used_count INT DEFAULT 0,
+    INDEX idx_expires_at (expires_at)
+);
+
+-- Note: Actual token secrets are NOT stored
+-- Only metadata for tracking/audit
+```
+
+**3. IAM Roles (No Credentials Needed)**
+```
+Pod/Service → IAM Role → Automatic Credentials → API Calls
+     ↓            ↓              ↓                  ↓
+  Assigned    Role ARN      AWS SDK/GCP      No explicit
+  role        attached      automatically    credentials
+              to resource   fetches tokens    needed
+```
+
+**Characteristics**:
+- **Type**: Role-based, no explicit credentials
+- **Lifetime**: Managed by cloud provider
+- **Storage**: Role metadata only
+- **Usage**: Automatic credential fetching by SDK
+- **Revocation**: Detach role from resource
+
+**Why IAM Doesn't Need RBAC**:
+- IAM uses **Policy-Based Access Control (PBAC)**, not RBAC
+- Permissions are defined in **policies** (JSON), not roles
+- Policies are attached to **principals** (users, roles, services)
+- No need for `t_role`, `t_permission`, `t_user_role` tables
+- Instead: `t_policy`, `t_policy_statement`, `t_principal_policy`
+
+---
+
+### IDM: Traditional Token-Based Authentication
+
+**Key Point**: IDM systems **use traditional tokens** (JWT, Session tokens) because they manage **user sessions** and **application access**.
+
+#### Why IDM Uses Tokens
+
+1. **User Sessions**: IDM manages **user login sessions** across applications
+2. **Stateless/Stateful**: Needs tokens to maintain user context
+3. **Application Integration**: Applications need tokens to identify users
+4. **Cross-Domain**: Tokens enable SSO across multiple applications
+
+#### IDM Token Types
+
+**1. Stateless Tokens (JWT-based) - For IDM**
 
 **Architecture**: Self-contained tokens, no server-side storage
 
 **Token Lifecycle**:
 ```
-Generation → Validation → Expiration
-     ↓            ↓            ↓
-  JWT created  Signature     Token
-  with claims  verified      expires
+User Login → JWT Generation → Client Storage → API Calls → Expiration
+     ↓            ↓                ↓              ↓            ↓
+  Credentials  JWT created    localStorage    Include in   Token
+  validated   with user info   or cookie      Authorization expires
+                                            header
 ```
 
 **Storage**:
-- **Token**: Client-side (localStorage, cookie)
-- **Metadata**: Optional database (for revocation)
+- **Token**: Client-side (localStorage, cookie, memory)
+- **Metadata**: Optional database (for revocation/audit)
 
 **Characteristics**:
 - ✅ **Scalable**: No shared storage needed
 - ✅ **Fast**: No database lookup required
+- ✅ **Self-contained**: User info embedded in token
 - ❌ **Revocation**: Difficult (requires blacklist)
 - ❌ **Size**: Larger than opaque tokens
 
-**Platforms**: Auth0, Okta (JWT mode), Custom JWT implementations
+**Platforms**: Auth0, Okta (JWT mode), Keycloak, Custom IDM systems
 
-### 2. **Stateful Tokens (Session-based)**
+**Database Schema** (for IDM):
+```sql
+CREATE TABLE t_idm_user (
+    id BIGINT PRIMARY KEY,
+    username VARCHAR(64) UNIQUE,
+    email VARCHAR(255),
+    password_hash VARCHAR(255),
+    enabled BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE t_idm_token (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    token_id VARCHAR(128) UNIQUE,  -- JWT jti claim
+    token_type VARCHAR(32),  -- ACCESS, REFRESH
+    issued_at DATETIME,
+    expires_at DATETIME,
+    revoked BOOLEAN DEFAULT FALSE,
+    device_info VARCHAR(255),
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    INDEX idx_token_id (token_id),
+    INDEX idx_user_id (user_id)
+);
+```
+
+**2. Stateful Tokens (Session-based) - For IDM**
 
 **Architecture**: Server-side session storage
 
 **Token Lifecycle**:
 ```
-Generation → Storage → Validation → Revocation/Expiration
-     ↓          ↓          ↓              ↓
-  UUID/Opaque  Redis/DB  Lookup      Delete from
-  token        storage   session      storage
+User Login → Session Creation → Token Generation → Client Storage → Validation → Expiration
+     ↓            ↓                  ↓                 ↓              ↓            ↓
+  Credentials  Session in      UUID/Opaque      Cookie or      Lookup      Delete
+  validated   Redis/DB         token created    header        session     session
 ```
 
 **Storage**:
-- **Token**: Opaque identifier (UUID)
-- **Session**: Server-side (Redis, database)
+- **Token**: Opaque identifier (UUID) - client-side
+- **Session**: Full session data - server-side (Redis, database)
 
 **Characteristics**:
-- ✅ **Revocation**: Easy (delete from storage)
+- ✅ **Revocation**: Easy (delete session from storage)
 - ✅ **Control**: Full server-side control
+- ✅ **Security**: Sensitive data never leaves server
 - ❌ **Scalability**: Requires shared storage
 - ❌ **Performance**: Database lookup per request
 
-**Platforms**: Traditional session-based systems, Redis-backed auth
+**Platforms**: Traditional session-based IDM systems, Redis-backed auth
 
-### 3. **Hybrid Approach (JWT + Database)**
+**Database Schema** (for IDM):
+```sql
+CREATE TABLE t_idm_session (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    session_id VARCHAR(128) UNIQUE,  -- UUID token
+    created_at DATETIME,
+    expires_at DATETIME,
+    last_accessed_at DATETIME,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(512),
+    session_data TEXT,  -- JSON: user info, permissions
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    INDEX idx_session_id (session_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_expires_at (expires_at)
+);
+```
+
+**3. Hybrid Approach (JWT + Database) - For IDM**
 
 **Architecture**: JWT for validation, database for management
 
 **Token Lifecycle**:
 ```
-Generation → JWT + DB → Validation → Revocation
-     ↓          ↓          ↓            ↓
-  JWT created  Store      Verify JWT   Mark as
-  with jti     metadata   + check DB  revoked
+User Login → JWT + DB → Client Storage → Validation → Revocation
+     ↓          ↓            ↓              ↓            ↓
+  Credentials  JWT created  localStorage  Verify JWT   Mark as
+  validated   + store      or cookie    + check DB   revoked
+              metadata                  revocation
 ```
 
 **Storage**:
@@ -224,18 +405,39 @@ Generation → JWT + DB → Validation → Revocation
 **Characteristics**:
 - ✅ **Best of both**: Stateless validation + revocation support
 - ✅ **Audit**: Full token usage tracking
+- ✅ **Scalable**: JWT validation doesn't need DB lookup
 - ⚠️ **Complexity**: More complex than pure JWT or session
 
-**Platforms**: Spring Security with JWT, Custom hybrid systems
+**Platforms**: Spring Security with JWT, Modern IDM systems
 
-### 4. **OAuth2/OIDC Tokens**
+**Database Schema** (for IDM):
+```sql
+-- Same as JWT token table above
+CREATE TABLE t_idm_token (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    token_id VARCHAR(128) UNIQUE,  -- JWT jti claim
+    token_format VARCHAR(16),  -- JWT
+    token_type VARCHAR(32),  -- ACCESS, REFRESH
+    issued_at DATETIME,
+    expires_at DATETIME,
+    revoked BOOLEAN DEFAULT FALSE,
+    last_used_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id)
+);
+```
 
-**Architecture**: Authorization server issues tokens
+**4. OAuth2/OIDC Tokens - For IDM**
+
+**Architecture**: Authorization server issues tokens for IDM
 
 **Token Lifecycle**:
 ```
-Authorization → Access Token → Refresh Token → Token Refresh
-     Request        (short)        (long)         Cycle
+User Login → Authorization Code → Access Token → Refresh Token → Token Refresh
+     ↓              ↓                  ↓              ↓              ↓
+  Authenticate   Short-lived      Short-lived    Long-lived    Exchange
+  via IDM        code (10min)     token (1hr)    token (days)  refresh for
+                                                               new access
 ```
 
 **Storage**:
@@ -246,9 +448,702 @@ Authorization → Access Token → Refresh Token → Token Refresh
 **Characteristics**:
 - ✅ **Standard**: Industry-standard protocol
 - ✅ **Delegation**: Supports third-party access
+- ✅ **Security**: Short-lived access tokens
 - ⚠️ **Complexity**: More complex than simple tokens
 
-**Platforms**: Keycloak, Okta, Auth0, AWS Cognito
+**Platforms**: Keycloak, Okta, Auth0, AWS Cognito (as IDM)
+
+**Database Schema** (for IDM):
+```sql
+CREATE TABLE t_oauth2_client (
+    id BIGINT PRIMARY KEY,
+    client_id VARCHAR(128) UNIQUE,
+    client_secret VARCHAR(255),
+    redirect_uris TEXT,
+    grant_types TEXT,  -- JSON: ["authorization_code", "refresh_token"]
+    scopes TEXT  -- JSON: ["read", "write"]
+);
+
+CREATE TABLE t_oauth2_access_token (
+    id BIGINT PRIMARY KEY,
+    access_token VARCHAR(512) UNIQUE,
+    refresh_token VARCHAR(512) UNIQUE,
+    client_id VARCHAR(128),
+    user_id BIGINT,
+    scopes TEXT,
+    expires_at DATETIME,
+    revoked BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (client_id) REFERENCES t_oauth2_client(client_id),
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id)
+);
+```
+
+---
+
+### Token Usage Comparison: IAM vs IDM
+
+| Aspect | IAM | IDM |
+|--------|-----|-----|
+| **Uses Tokens?** | ❌ No (uses credentials) | ✅ Yes |
+| **Token Type** | Service Account Keys, STS Tokens | JWT, Session Tokens, OAuth2 Tokens |
+| **Purpose** | Service-to-service API access | User authentication and authorization |
+| **Lifetime** | Long-term keys or short-term STS (15min-1hr) | Short-term (15min-1hr) or long-term sessions |
+| **Storage** | Secure key management (never in DB) | Client-side (token) + optional DB (metadata) |
+| **Revocation** | Delete/disable key or wait for STS expiration | Delete session or mark token as revoked |
+| **User Context** | ❌ No user sessions | ✅ User sessions maintained |
+| **Database Tables** | `t_service_account`, `t_sts_token` (metadata only) | `t_user`, `t_token`, `t_session` |
+
+---
+
+### Why This Distinction Matters
+
+**IAM (Infrastructure Layer)**:
+- **No user tokens** because there are no user sessions
+- **Credentials** (keys, STS tokens) are for **service authentication**
+- **Policies** determine access, not tokens with embedded permissions
+- **No RBAC** - uses Policy-Based Access Control (PBAC)
+
+**IDM (Application Layer)**:
+- **Uses tokens** because it manages **user sessions**
+- **Tokens** contain user identity and permissions
+- **RBAC** determines access through roles and permissions
+- **Tokens** enable SSO and cross-application authentication
+
+**Key Takeaway**: 
+- **JWT, Session tokens, Hybrid approach** → These are **IDM concepts**, NOT IAM
+- **IAM uses credentials** (service account keys, STS tokens), not user tokens
+- **IAM doesn't need RBAC** because it uses Policy-Based Access Control
+
+---
+
+## IAM vs IDM: Comprehensive Deep Dive
+
+This section provides an in-depth comparison of IAM and IDM across all dimensions: data modeling, API design, application scenarios, and core use cases.
+
+### Core Architectural Differences
+
+| Dimension | IAM | IDM |
+|-----------|-----|-----|
+| **Purpose** | Infrastructure access control | Application user authentication |
+| **Layer** | Infrastructure/Cloud | Application/Business |
+| **Users** | Service accounts, IAM users, roles | Application end users |
+| **Resources** | Cloud resources (S3, EC2, RDS) | Application resources (shortlinks, users) |
+| **Token/Credential** | Service account keys, STS tokens | JWT, Session tokens, OAuth2 tokens |
+| **Access Model** | Policy-Based Access Control (PBAC) | Role-Based Access Control (RBAC) |
+| **Session Management** | ❌ No user sessions | ✅ User sessions |
+| **User Context** | ❌ No user context in tokens | ✅ User context in tokens |
+
+---
+
+### Database Schema Modeling: IAM vs IDM
+
+#### IAM Database Schema
+
+**Key Characteristics**:
+- **No user table** (uses external user directory or service accounts)
+- **Policy-centric** design
+- **Resource-focused** tables
+- **No role-permission mapping** (uses policies instead)
+
+**Core Tables**:
+```sql
+-- IAM Policy (central to IAM)
+CREATE TABLE t_iam_policy (
+    id BIGINT PRIMARY KEY,
+    policy_name VARCHAR(128) UNIQUE,
+    policy_document TEXT,  -- JSON policy document
+    description TEXT,
+    created_at DATETIME,
+    updated_at DATETIME
+);
+
+-- Policy Statements (decomposed from policy document)
+CREATE TABLE t_iam_policy_statement (
+    id BIGINT PRIMARY KEY,
+    policy_id BIGINT,
+    statement_id VARCHAR(128),  -- Unique within policy
+    effect VARCHAR(16),  -- ALLOW, DENY
+    actions TEXT,  -- JSON array: ["s3:GetObject", "s3:PutObject"]
+    resources TEXT,  -- JSON array: ["arn:aws:s3:::bucket/*"]
+    conditions TEXT,  -- JSON: {"IpAddress": {"aws:SourceIp": "..."}}
+    FOREIGN KEY (policy_id) REFERENCES t_iam_policy(id),
+    INDEX idx_policy_id (policy_id)
+);
+
+-- IAM Principals (users, roles, service accounts)
+CREATE TABLE t_iam_principal (
+    id BIGINT PRIMARY KEY,
+    principal_type VARCHAR(32),  -- USER, ROLE, SERVICE_ACCOUNT
+    principal_id VARCHAR(128) UNIQUE,  -- AWS ARN, GCP service account email
+    principal_name VARCHAR(128),
+    created_at DATETIME
+);
+
+-- Principal-Policy Attachment (many-to-many)
+CREATE TABLE t_principal_policy (
+    id BIGINT PRIMARY KEY,
+    principal_id BIGINT,
+    policy_id BIGINT,
+    attached_at DATETIME,
+    FOREIGN KEY (principal_id) REFERENCES t_iam_principal(id),
+    FOREIGN KEY (policy_id) REFERENCES t_iam_policy(id),
+    UNIQUE KEY uk_principal_policy (principal_id, policy_id)
+);
+
+-- IAM Resources (cloud resources)
+CREATE TABLE t_iam_resource (
+    id BIGINT PRIMARY KEY,
+    resource_arn VARCHAR(512) UNIQUE,  -- AWS ARN, GCP resource name
+    resource_type VARCHAR(64),  -- s3_bucket, ec2_instance, rds_database
+    resource_name VARCHAR(128),
+    tags TEXT,  -- JSON: {"Environment": "prod", "Owner": "team-a"}
+    created_at DATETIME
+);
+
+-- Service Account (for service-to-service auth)
+CREATE TABLE t_iam_service_account (
+    id BIGINT PRIMARY KEY,
+    account_id VARCHAR(128) UNIQUE,  -- AWS Access Key ID, GCP service account email
+    account_name VARCHAR(128),
+    principal_id BIGINT,  -- Links to t_iam_principal
+    created_at DATETIME,
+    last_rotated_at DATETIME,
+    enabled BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (principal_id) REFERENCES t_iam_principal(id)
+);
+
+-- Note: Secret keys are NEVER stored in database
+-- They are stored in secure key management systems (AWS Secrets Manager, etc.)
+
+-- STS Token Metadata (for temporary credentials)
+CREATE TABLE t_iam_sts_token (
+    id BIGINT PRIMARY KEY,
+    token_id VARCHAR(128) UNIQUE,
+    principal_id BIGINT,
+    assumed_role_arn VARCHAR(512),
+    issued_at DATETIME,
+    expires_at DATETIME,
+    used_count INT DEFAULT 0,
+    FOREIGN KEY (principal_id) REFERENCES t_iam_principal(id),
+    INDEX idx_expires_at (expires_at)
+);
+```
+
+**Key Differences from IDM**:
+- ❌ **No `t_user` table** - uses `t_iam_principal` instead
+- ❌ **No `t_role` table** - roles are just principals with type=ROLE
+- ❌ **No `t_permission` table** - permissions are in policy statements
+- ❌ **No `t_user_role` table** - uses `t_principal_policy` instead
+- ✅ **Has `t_iam_policy` table** - central to IAM
+- ✅ **Has `t_iam_resource` table** - tracks cloud resources
+- ✅ **Has `t_iam_service_account` table** - for service authentication
+
+#### IDM Database Schema
+
+**Key Characteristics**:
+- **User-centric** design
+- **Role-permission** mapping
+- **Session management** tables
+- **Token management** tables
+
+**Core Tables**:
+```sql
+-- User (central to IDM)
+CREATE TABLE t_idm_user (
+    id BIGINT PRIMARY KEY,
+    username VARCHAR(64) UNIQUE,
+    email VARCHAR(255) UNIQUE,
+    password_hash VARCHAR(255),  -- BCrypt hashed
+    real_name VARCHAR(128),
+    phone VARCHAR(20),
+    enabled BOOLEAN DEFAULT TRUE,
+    account_expired BOOLEAN DEFAULT FALSE,
+    account_locked BOOLEAN DEFAULT FALSE,
+    credentials_expired BOOLEAN DEFAULT FALSE,
+    created_at DATETIME,
+    updated_at DATETIME,
+    INDEX idx_username (username),
+    INDEX idx_email (email)
+);
+
+-- Organization (for hierarchical structure)
+CREATE TABLE t_organization (
+    id BIGINT PRIMARY KEY,
+    org_code VARCHAR(64) UNIQUE,
+    org_name VARCHAR(128),
+    parent_org_id BIGINT NULL,
+    FOREIGN KEY (parent_org_id) REFERENCES t_organization(id)
+);
+
+-- Group (within organization)
+CREATE TABLE t_group (
+    id BIGINT PRIMARY KEY,
+    org_id BIGINT,
+    group_code VARCHAR(64),
+    group_name VARCHAR(128),
+    parent_group_id BIGINT NULL,
+    FOREIGN KEY (org_id) REFERENCES t_organization(id),
+    FOREIGN KEY (parent_group_id) REFERENCES t_group(id),
+    UNIQUE KEY uk_org_group (org_id, group_code)
+);
+
+-- User-Organization/Group mapping
+CREATE TABLE t_user_org (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    org_id BIGINT,
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    FOREIGN KEY (org_id) REFERENCES t_organization(id)
+);
+
+CREATE TABLE t_user_group (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    group_id BIGINT,
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    FOREIGN KEY (group_id) REFERENCES t_group(id),
+    UNIQUE KEY uk_user_group (user_id, group_id)
+);
+
+-- Role (for RBAC)
+CREATE TABLE t_role (
+    id BIGINT PRIMARY KEY,
+    role_code VARCHAR(64) UNIQUE,
+    role_name VARCHAR(128),
+    description TEXT,
+    org_id BIGINT NULL,  -- NULL = global role
+    FOREIGN KEY (org_id) REFERENCES t_organization(id)
+);
+
+-- Permission (for RBAC)
+CREATE TABLE t_permission (
+    id BIGINT PRIMARY KEY,
+    resource VARCHAR(64),  -- e.g., "shortlink", "user"
+    action VARCHAR(32),  -- e.g., "create", "read", "update", "delete"
+    description TEXT,
+    UNIQUE KEY uk_resource_action (resource, action)
+);
+
+-- User-Role mapping
+CREATE TABLE t_user_role (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    role_id BIGINT,
+    assigned_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    FOREIGN KEY (role_id) REFERENCES t_role(id),
+    UNIQUE KEY uk_user_role (user_id, role_id)
+);
+
+-- Group-Role mapping (groups inherit roles)
+CREATE TABLE t_group_role (
+    id BIGINT PRIMARY KEY,
+    group_id BIGINT,
+    role_id BIGINT,
+    FOREIGN KEY (group_id) REFERENCES t_group(id),
+    FOREIGN KEY (role_id) REFERENCES t_role(id),
+    UNIQUE KEY uk_group_role (group_id, role_id)
+);
+
+-- Role-Permission mapping
+CREATE TABLE t_role_permission (
+    id BIGINT PRIMARY KEY,
+    role_id BIGINT,
+    permission_id BIGINT,
+    FOREIGN KEY (role_id) REFERENCES t_role(id),
+    FOREIGN KEY (permission_id) REFERENCES t_permission(id),
+    UNIQUE KEY uk_role_permission (role_id, permission_id)
+);
+
+-- Token (for user authentication)
+CREATE TABLE t_idm_token (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    token_id VARCHAR(128) UNIQUE,  -- JWT jti or UUID
+    token_format VARCHAR(16),  -- JWT, UUID, OAUTH2
+    token_type VARCHAR(32),  -- ACCESS, REFRESH
+    issued_at DATETIME,
+    expires_at DATETIME,
+    revoked BOOLEAN DEFAULT FALSE,
+    revoked_at DATETIME NULL,
+    last_used_at DATETIME NULL,
+    device_info VARCHAR(255),
+    ip_address VARCHAR(45),
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    INDEX idx_token_id (token_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_expires_at (expires_at)
+);
+
+-- Session (for stateful authentication)
+CREATE TABLE t_idm_session (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    session_id VARCHAR(128) UNIQUE,  -- UUID
+    created_at DATETIME,
+    expires_at DATETIME,
+    last_accessed_at DATETIME,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(512),
+    session_data TEXT,  -- JSON: user info, permissions
+    FOREIGN KEY (user_id) REFERENCES t_idm_user(id),
+    INDEX idx_session_id (session_id),
+    INDEX idx_user_id (user_id)
+);
+```
+
+**Key Differences from IAM**:
+- ✅ **Has `t_idm_user` table** - central to IDM
+- ✅ **Has `t_role` table** - for RBAC
+- ✅ **Has `t_permission` table** - for RBAC
+- ✅ **Has `t_user_role` table** - role assignment
+- ✅ **Has `t_idm_token` table** - user token management
+- ✅ **Has `t_idm_session` table** - user session management
+- ❌ **No `t_iam_policy` table** - uses roles/permissions instead
+- ❌ **No `t_iam_resource` table** - resources are application-specific
+
+---
+
+### API Design: IAM vs IDM
+
+#### IAM API Design
+
+**Characteristics**:
+- **Resource-oriented** (policies, principals, resources)
+- **CRUD operations** on policies and principals
+- **Policy evaluation** endpoints
+- **No user authentication** endpoints (that's IDM's job)
+
+**Example Endpoints**:
+```
+# Policy Management
+POST   /api/v1/iam/policies                    # Create policy
+GET    /api/v1/iam/policies/{id}                # Get policy
+PUT    /api/v1/iam/policies/{id}               # Update policy
+DELETE /api/v1/iam/policies/{id}               # Delete policy
+
+# Principal Management
+POST   /api/v1/iam/principals                  # Create principal
+GET    /api/v1/iam/principals/{id}             # Get principal
+PUT    /api/v1/iam/principals/{id}            # Update principal
+DELETE /api/v1/iam/principals/{id}             # Delete principal
+
+# Policy Attachment
+POST   /api/v1/iam/principals/{id}/policies    # Attach policy to principal
+DELETE /api/v1/iam/principals/{id}/policies/{policyId}  # Detach policy
+
+# Policy Evaluation
+POST   /api/v1/iam/policies/evaluate           # Evaluate policy
+GET    /api/v1/iam/principals/{id}/permissions  # Get effective permissions
+
+# Service Account Management
+POST   /api/v1/iam/service-accounts            # Create service account
+GET    /api/v1/iam/service-accounts/{id}       # Get service account
+POST   /api/v1/iam/service-accounts/{id}/rotate  # Rotate keys
+DELETE /api/v1/iam/service-accounts/{id}       # Delete service account
+
+# STS Token Management
+POST   /api/v1/iam/sts/assume-role             # Assume role (get STS token)
+GET    /api/v1/iam/sts/tokens/{id}             # Get token metadata
+```
+
+**Example Implementation**:
+```java
+@RestController
+@RequestMapping("/api/v1/iam")
+public class IamPolicyController {
+    
+    @PostMapping("/policies")
+    public ResponseEntity<PolicyDTO> createPolicy(@RequestBody CreatePolicyRequest request) {
+        IamPolicy policy = iamPolicyService.createPolicy(
+            request.getPolicyName(),
+            request.getPolicyDocument()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(PolicyDTO.from(policy));
+    }
+    
+    @PostMapping("/policies/evaluate")
+    public ResponseEntity<PolicyEvaluationResult> evaluatePolicy(
+            @RequestBody PolicyEvaluationRequest request) {
+        // Evaluate if principal can perform action on resource
+        PolicyEvaluationResult result = policyEngine.evaluate(
+            request.getPrincipalId(),
+            request.getAction(),
+            request.getResource()
+        );
+        return ResponseEntity.ok(result);
+    }
+    
+    @PostMapping("/sts/assume-role")
+    public ResponseEntity<StsTokenResponse> assumeRole(
+            @RequestBody AssumeRoleRequest request) {
+        // Generate temporary STS token
+        StsToken token = stsService.assumeRole(
+            request.getRoleArn(),
+            request.getDurationSeconds()
+        );
+        return ResponseEntity.ok(StsTokenResponse.from(token));
+    }
+}
+```
+
+#### IDM API Design
+
+**Characteristics**:
+- **User-oriented** (users, roles, permissions)
+- **Authentication** endpoints (login, logout, refresh)
+- **User management** endpoints
+- **Role/permission** management endpoints
+
+**Example Endpoints**:
+```
+# Authentication
+POST   /api/v1/idm/auth/login                  # User login
+POST   /api/v1/idm/auth/logout                 # User logout
+POST   /api/v1/idm/auth/refresh                # Refresh token
+POST   /api/v1/idm/auth/register               # User registration
+POST   /api/v1/idm/auth/reset-password         # Password reset
+
+# User Management
+POST   /api/v1/idm/users                       # Create user
+GET    /api/v1/idm/users/{id}                  # Get user
+PUT    /api/v1/idm/users/{id}                  # Update user
+DELETE /api/v1/idm/users/{id}                  # Delete user
+GET    /api/v1/idm/users/{id}/roles             # Get user roles
+POST   /api/v1/idm/users/{id}/roles             # Assign role to user
+DELETE /api/v1/idm/users/{id}/roles/{roleId}   # Remove role from user
+
+# Role Management
+POST   /api/v1/idm/roles                      # Create role
+GET    /api/v1/idm/roles/{id}                 # Get role
+PUT    /api/v1/idm/roles/{id}                 # Update role
+DELETE /api/v1/idm/roles/{id}                 # Delete role
+GET    /api/v1/idm/roles/{id}/permissions     # Get role permissions
+POST   /api/v1/idm/roles/{id}/permissions     # Assign permission to role
+
+# Permission Management
+POST   /api/v1/idm/permissions                # Create permission
+GET    /api/v1/idm/permissions                # List permissions
+GET    /api/v1/idm/users/{id}/permissions     # Get user effective permissions
+
+# Token Management
+GET    /api/v1/idm/tokens                     # List user tokens
+DELETE /api/v1/idm/tokens/{id}                # Revoke token
+POST   /api/v1/idm/tokens/{id}/revoke         # Revoke token
+
+# Session Management
+GET    /api/v1/idm/sessions                   # List user sessions
+DELETE /api/v1/idm/sessions/{id}              # Terminate session
+POST   /api/v1/idm/sessions/terminate-all     # Terminate all sessions
+```
+
+**Example Implementation**:
+```java
+@RestController
+@RequestMapping("/api/v1/idm/auth")
+public class IdmAuthController {
+    
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        AuthenticationResult result = authService.authenticate(
+            request.getUsername(),
+            request.getPassword()
+        );
+        
+        return ResponseEntity.ok(LoginResponse.builder()
+            .token(result.getToken())
+            .refreshToken(result.getRefreshToken())
+            .expiresIn(result.getExpiresIn())
+            .userInfo(UserInfoDTO.from(result.getUser()))
+            .build());
+    }
+    
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshRequest request) {
+        TokenResult result = tokenService.refreshToken(request.getRefreshToken());
+        return ResponseEntity.ok(TokenResponse.from(result));
+    }
+}
+
+@RestController
+@RequestMapping("/api/v1/idm/users")
+public class IdmUserController {
+    
+    @GetMapping("/{id}/permissions")
+    public ResponseEntity<List<PermissionDTO>> getUserPermissions(@PathVariable Long id) {
+        List<Permission> permissions = authorizationService.getUserEffectivePermissions(id);
+        return ResponseEntity.ok(permissions.stream()
+            .map(PermissionDTO::from)
+            .collect(Collectors.toList()));
+    }
+    
+    @PostMapping("/{id}/roles")
+    public ResponseEntity<UserDTO> assignRole(
+            @PathVariable Long id,
+            @RequestBody AssignRoleRequest request) {
+        User user = userService.assignRole(id, request.getRoleId());
+        return ResponseEntity.ok(UserDTO.from(user));
+    }
+}
+```
+
+---
+
+### Application Scenarios: IAM vs IDM
+
+#### IAM Application Scenarios
+
+**Scenario 1: Kubernetes Pod Accessing S3**
+```
+Kubernetes Pod → IAM Role → STS Token → S3 API
+     ↓              ↓           ↓          ↓
+  Pod has      Role has    Temporary  S3 API
+  IAM role     policy      token      validates
+  attached     attached    issued     token
+```
+
+**Scenario 2: CI/CD Pipeline Accessing Cloud Resources**
+```
+CI/CD Pipeline → Service Account → API Key → Cloud APIs
+     ↓                ↓               ↓          ↓
+  Pipeline      Service account   Long-term   Cloud APIs
+  configured    created           credentials validate
+  with SA       with policies     stored      credentials
+```
+
+**Scenario 3: Microservice-to-Microservice Communication**
+```
+Service A → IAM Role → STS Token → Service B API
+     ↓          ↓          ↓            ↓
+  Service A  Assumes   Temporary    Service B
+  assumes    role      token       validates
+  role                 issued      token
+```
+
+**Key Characteristics**:
+- **No user interaction** - automated service-to-service
+- **Policy-based** - access determined by policies
+- **Temporary credentials** - STS tokens for security
+- **Resource-focused** - access to cloud resources
+
+#### IDM Application Scenarios
+
+**Scenario 1: User Login to Web Application**
+```
+User → Login Form → IDM Service → JWT Token → Application
+  ↓        ↓            ↓             ↓            ↓
+User   Submits    Validates      JWT token   Application
+enters credentials credentials   issued      stores token
+credentials                     to client    in localStorage
+```
+
+**Scenario 2: User Accessing Protected Resource**
+```
+User → Request with Token → Gateway → IDM Validation → Application
+  ↓           ↓              ↓            ↓               ↓
+User      Includes JWT    Gateway    IDM validates   Application
+makes     token in       extracts   token and      processes
+request   Authorization  token      returns user    request with
+          header                     info           user context
+```
+
+**Scenario 3: SSO Across Multiple Applications**
+```
+User → Login to App A → IDM → SSO Token → App B, App C
+  ↓          ↓           ↓         ↓          ↓
+User     Authenticates  IDM     SSO token  Apps B & C
+logs in  via App A      issues   shared     validate
+                              across apps   SSO token
+```
+
+**Key Characteristics**:
+- **User interaction** - end users authenticate
+- **Role-based** - access determined by roles/permissions
+- **Session management** - user sessions maintained
+- **Application-focused** - access to application features
+
+---
+
+### Core Use Cases: IAM vs IDM
+
+#### IAM Core Use Cases
+
+1. **Cloud Resource Access Control**
+   - Who can access which S3 buckets?
+   - Which services can start/stop EC2 instances?
+   - Who can read/write to RDS databases?
+
+2. **Service-to-Service Authentication**
+   - How does Service A authenticate to Service B?
+   - How does a Kubernetes pod access cloud APIs?
+   - How does CI/CD pipeline access cloud resources?
+
+3. **Infrastructure Permissions**
+   - Who can create/delete cloud resources?
+   - Who can modify IAM policies?
+   - Who can access cloud provider APIs?
+
+**Example**:
+```
+Question: "Can this Kubernetes pod read from S3 bucket 'my-bucket'?"
+IAM Answer: 
+  1. Check pod's IAM role
+  2. Evaluate role's policies
+  3. Check if policy allows s3:GetObject on arn:aws:s3:::my-bucket/*
+  4. Return: ALLOW or DENY
+```
+
+#### IDM Core Use Cases
+
+1. **User Authentication**
+   - How do users log in to the application?
+   - How are user sessions managed?
+   - How are passwords reset?
+
+2. **User Authorization**
+   - Can user john_doe create a shortlink?
+   - Can user jane_smith delete a user account?
+   - Can user admin_user access admin panel?
+
+3. **Application Access Control**
+   - Who can access which features?
+   - Who can perform which actions?
+   - Who can view which data?
+
+**Example**:
+```
+Question: "Can user john_doe create a shortlink?"
+IDM Answer:
+  1. Get user's roles from database
+  2. Get permissions for each role
+  3. Check if any role has 'shortlink:create' permission
+  4. Return: ALLOW or DENY
+```
+
+---
+
+### Summary: When to Use IAM vs IDM
+
+**Use IAM When**:
+- ✅ Managing **cloud infrastructure** access
+- ✅ **Service-to-service** authentication needed
+- ✅ **Policy-based** access control required
+- ✅ **No user sessions** needed
+- ✅ **Resource-centric** permissions
+
+**Use IDM When**:
+- ✅ Managing **application user** authentication
+- ✅ **User sessions** need to be maintained
+- ✅ **Role-based** access control required
+- ✅ **User-centric** permissions
+- ✅ **SSO** across multiple applications needed
+
+**Use Both When**:
+- ✅ **Hybrid architecture** (cloud-native applications)
+- ✅ **IAM** for infrastructure access (Kubernetes, cloud APIs)
+- ✅ **IDM** for application user access (web app, mobile app)
+- ✅ **Clear separation** between infrastructure and application layers
 
 ---
 
@@ -256,7 +1151,9 @@ Authorization → Access Token → Refresh Token → Token Refresh
 
 Different identity platforms use different permission models:
 
-### 1. **RBAC (Role-Based Access Control)**
+### 1. **RBAC (Role-Based Access Control) - IDM Only**
+
+**Critical Point**: RBAC is **primarily used by IDM systems**, NOT IAM systems.
 
 **Structure**: User → Role → Permission
 
@@ -269,6 +1166,7 @@ t_user → t_user_role → t_role → t_role_permission → t_permission
 - **Roles**: Predefined sets of permissions
 - **Assignment**: Users assigned to roles
 - **Granularity**: Permission level (resource:action)
+- **User-centric**: Focuses on what users can do
 
 **Example**:
 ```
@@ -279,7 +1177,13 @@ User: john_doe
     → Permission: user:manage
 ```
 
-**Platforms**: Most IDM systems, Spring Security (default)
+**Platforms**: **IDM systems only** - Keycloak, Okta, Auth0, Spring Security, Custom IDM
+
+**Why IAM Doesn't Use RBAC**:
+- IAM uses **Policy-Based Access Control (PBAC)**, not RBAC
+- IAM policies are **resource-centric** (what resources can be accessed)
+- IAM doesn't have a "user" concept in the same way IDM does
+- IAM permissions are defined in **JSON policies**, not role-permission mappings
 
 ### 2. **ABAC (Attribute-Based Access Control)**
 
@@ -328,21 +1232,52 @@ Resource: shortlink/abc123
 
 **Platforms**: File systems, some document management systems
 
-### 4. **PBAC (Policy-Based Access Control)**
+### 4. **PBAC (Policy-Based Access Control) - IAM Primary Model**
+
+**Critical Point**: PBAC is **the primary access control model for IAM systems**.
 
 **Structure**: Policies → Rules → Decisions
 
-**Database Schema**:
+**Database Schema** (for IAM):
 ```sql
-t_policy → t_policy_rule → t_condition → t_action
+t_iam_policy → t_policy_statement → t_condition → t_action → t_resource
+t_iam_principal → t_principal_policy → t_iam_policy
 ```
 
 **Characteristics**:
-- **Policy-driven**: Centralized policy definitions
+- **Policy-driven**: Centralized policy definitions (JSON/YAML)
+- **Resource-centric**: Focuses on what resources can be accessed
 - **Rule-based**: Complex rules with conditions
 - **Dynamic**: Policies evaluated at runtime
+- **No roles**: Direct policy attachment to principals
 
-**Platforms**: AWS IAM Policies, Open Policy Agent (OPA)
+**Example (AWS IAM Policy)**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::my-bucket/*",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": "203.0.113.0/24"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Platforms**: **IAM systems** - AWS IAM, Azure RBAC, GCP IAM, Open Policy Agent (OPA)
+
+**Why IAM Uses PBAC Instead of RBAC**:
+1. **Infrastructure Focus**: IAM manages cloud resources, not application users
+2. **Flexibility**: Policies can express complex conditions (IP, time, resource tags)
+3. **Scalability**: Policies are evaluated at runtime, no role hierarchy to traverse
+4. **Resource-Centric**: Access is determined by resource attributes, not user roles
+5. **No User Sessions**: IAM doesn't maintain user sessions, so no need for role-based sessions
 
 ### 5. **Hierarchical RBAC**
 
@@ -608,33 +1543,46 @@ CREATE TABLE t_session (
 
 ## Comparison Matrix
 
-### Token Lifecycle Management
+### Token/Credential Lifecycle Management
 
-| Platform Type | Token Type | Storage Location | Revocation | Scalability |
-|--------------|-----------|----------------|-----------|-------------|
-| **JWT-based IDM** | JWT | Client + Optional DB | Difficult (blacklist) | High |
-| **Session-based IDM** | Opaque (UUID) | Server (Redis/DB) | Easy (delete) | Medium |
-| **Hybrid IDM** | JWT + Metadata | Client + DB | Easy (mark revoked) | High |
-| **OAuth2/OIDC** | Access + Refresh | Client + Server | Easy (revoke refresh) | High |
-| **IAM (AWS)** | Service tokens | AWS IAM | Easy (delete key) | High |
+| Platform Type | Token/Credential Type | Storage Location | Revocation | Scalability | User Sessions |
+|--------------|---------------------|----------------|-----------|-------------|---------------|
+| **IAM - Service Account Keys** | Access Key + Secret Key | Secure key management | Easy (delete/disable) | High | ❌ No |
+| **IAM - STS Tokens** | Temporary credentials | In-memory only | Automatic (expires) | High | ❌ No |
+| **IDM - JWT** | JWT token | Client + Optional DB | Difficult (blacklist) | High | ✅ Yes |
+| **IDM - Session** | Opaque (UUID) | Server (Redis/DB) | Easy (delete) | Medium | ✅ Yes |
+| **IDM - Hybrid** | JWT + Metadata | Client + DB | Easy (mark revoked) | High | ✅ Yes |
+| **IDM - OAuth2/OIDC** | Access + Refresh | Client + Server | Easy (revoke refresh) | High | ✅ Yes |
+
+**Key Distinction**:
+- **IAM**: Uses **credentials** (keys, STS tokens), NOT user tokens. No user sessions.
+- **IDM**: Uses **tokens** (JWT, Session, OAuth2). Maintains user sessions.
 
 ### Permission Model
 
-| Platform Type | Model | Structure | Granularity | Use Case |
-|--------------|-------|-----------|-------------|----------|
-| **Simple IDM** | RBAC | User → Role → Permission | Medium | Small apps |
-| **Enterprise IDM** | Hierarchical RBAC | Org → Group → User → Role → Permission | Medium-High | Large orgs |
-| **IAM (AWS)** | PBAC | Policy → Resource → Action | High | Cloud resources |
-| **Advanced IDM** | ABAC | Attributes → Policy → Decision | Very High | Complex rules |
+| Platform Type | Model | Structure | Granularity | Use Case | Token/Credential |
+|--------------|-------|-----------|-------------|----------|------------------|
+| **IAM** | PBAC (Policy-Based) | Policy → Principal → Resource → Action | High | Cloud resources | ❌ No tokens (uses credentials) |
+| **Simple IDM** | RBAC | User → Role → Permission | Medium | Small apps | ✅ JWT/Session tokens |
+| **Enterprise IDM** | Hierarchical RBAC | Org → Group → User → Role → Permission | Medium-High | Large orgs | ✅ JWT/Session tokens |
+| **Advanced IDM** | ABAC | Attributes → Policy → Decision | Very High | Complex rules | ✅ JWT/Session tokens |
+
+**Key Distinction**:
+- **IAM**: Uses **PBAC** (Policy-Based Access Control). **No RBAC**. **No tokens** (uses credentials).
+- **IDM**: Uses **RBAC** (Role-Based Access Control). **Uses tokens** (JWT, Session, OAuth2).
 
 ### Database Schema Complexity
 
-| Pattern | Tables | Relationships | Complexity | Scalability |
-|---------|--------|--------------|------------|-------------|
-| **Flat RBAC** | 5 tables | Simple | Low | Medium |
-| **Hierarchical RBAC** | 8-10 tables | Medium | Medium | High |
-| **ABAC** | 6-8 tables | Complex | High | Very High |
-| **Token Storage** | 1-2 tables | Simple | Low | High |
+| Pattern | Platform Type | Core Tables | Key Differences | Complexity | Scalability |
+|---------|--------------|-------------|-----------------|------------|-------------|
+| **IAM Schema** | IAM | `t_iam_policy`, `t_policy_statement`, `t_iam_principal`, `t_principal_policy`, `t_iam_resource`, `t_iam_service_account` | No user table, policy-centric | Medium | High |
+| **IDM - Flat RBAC** | IDM | `t_user`, `t_role`, `t_permission`, `t_user_role`, `t_role_permission` | User-centric, role-permission mapping | Low | Medium |
+| **IDM - Hierarchical RBAC** | IDM | Above + `t_organization`, `t_group`, `t_user_group`, `t_group_role` | Adds organization/group hierarchy | Medium | High |
+| **IDM - Token Storage** | IDM | `t_idm_token`, `t_idm_session` | Token/session management | Low | High |
+
+**Key Distinction**:
+- **IAM Schema**: **No `t_user` table**. Uses `t_iam_principal`. **Policy-centric** design.
+- **IDM Schema**: **Has `t_user` table**. **User-centric** design. **Role-permission** mapping.
 
 ---
 
