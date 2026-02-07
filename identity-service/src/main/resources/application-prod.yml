@@ -1,0 +1,45 @@
+# Production configuration for Identity Service
+# Standalone Identity Service deployment
+
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  application:
+    name: ${APP_NAME:identity-service}
+
+  datasource:
+  # Identity Service may need database for token persistence (future)
+  # url: ${IDENTITY_DB_URL:jdbc:postgresql://postgres.shortlink.svc.cluster.local:5432/identity}
+  # username: ${IDENTITY_DB_USER:admin}
+  # password: ${IDENTITY_DB_PASSWORD:admin}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis.shortlink.svc.cluster.local}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        cluster:
+          refresh:
+            adaptive: true
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 3000ms
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      base-path: /api/identity/actuator
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO

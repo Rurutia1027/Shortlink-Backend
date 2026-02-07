@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.tus.shortlink</groupId>
+        <artifactId>shortlink-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>shortlink-identity-api</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Shortlink Identity API</name>
+    <description>Identity API Module - Interfaces, DTOs, and core logic for other modules to use as a library
+    </description>
+
+    <dependencies>
+        <!-- Base Module (for DTOs, UserInfoDTO, etc.) -->
+        <dependency>
+            <groupId>org.tus.shortlink</groupId>
+            <artifactId>shortlink-base</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Redis Module (for CacheService) -->
+        <dependency>
+            <groupId>org.tus.shortlink</groupId>
+            <artifactId>common-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Spring Boot (for auto-configuration and component scanning) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- WebClient for HTTP client (when Identity Service is deployed separately) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <!-- FastJSON2 for JSON parsing (used in IdentityServiceImpl) -->
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Regular JAR only - no Spring Boot repackaging -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
