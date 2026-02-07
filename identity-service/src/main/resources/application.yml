@@ -1,0 +1,27 @@
+# Identity Service Configuration (Development)
+# Standalone Identity Service deployment
+
+server:
+  port: 8083
+
+spring:
+  application:
+    name: identity-service
+
+  data:
+    redis:
+      # Single Redis node (default dev)
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:StrongRedisPass123!}
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      base-path: /api/identity/actuator
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
