@@ -51,11 +51,11 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Identity Module (for IdentityClient) -->
+        <!-- Identity API Module (for IdentityClient) -->
         <dependency>
             <groupId>org.tus.shortlink</groupId>
-            <artifactId>shortlink-identity</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <artifactId>shortlink-identity-api</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Utilities -->
