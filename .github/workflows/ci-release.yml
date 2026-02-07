@@ -44,8 +44,11 @@ jobs:
           echo "Checking generated JARs..."
           ls -lh */target/*.jar || echo "No JARs found"
           echo ""
-          echo "Checking Identity module JARs (should have both regular and exec JARs):"
-          ls -lh identity/target/*.jar || echo "No Identity JARs found"
+          echo "Checking Identity API module (regular JAR for library):"
+          ls -lh identity-api/target/*.jar || echo "No Identity API JARs found"
+          echo ""
+          echo "Checking Identity Service module (fat JAR for Docker):"
+          ls -lh identity-service/target/*.jar || echo "No Identity Service JARs found"
 
       # 6️⃣ Set up QEMU for multi-arch build (only for actual release)
       - name: Set up QEMU
