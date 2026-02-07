@@ -51,11 +51,11 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Redis Module (for BloomFilter, Cache, etc.) -->
+        <!-- Identity Module (for IdentityClient) -->
         <dependency>
             <groupId>org.tus.shortlink</groupId>
-            <artifactId>common-redis</artifactId>
-            <version>${project.version}</version>
+            <artifactId>shortlink-identity</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
 
         <!-- Utilities -->

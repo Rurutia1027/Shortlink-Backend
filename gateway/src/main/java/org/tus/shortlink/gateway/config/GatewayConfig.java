@@ -2,6 +2,7 @@ package org.tus.shortlink.gateway.config;
 
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
 
@@ -9,6 +10,10 @@ import reactor.core.publisher.Mono;
  * Gateway configuration
  */
 @Configuration
+@ComponentScan(basePackages = {
+        "org.tus.shortlink.gateway",
+        "org.tus.shortlink.identity" // Ensure Identity module components are scanned
+})
 public class GatewayConfig {
 
     /**
