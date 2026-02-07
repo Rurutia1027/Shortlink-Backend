@@ -29,10 +29,16 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Spring Boot Web (for REST API if needed) -->
+        <!-- Spring Boot Web (for REST API) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- WebClient for HTTP client (when Identity Service is deployed separately) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
         <!-- Utilities -->
