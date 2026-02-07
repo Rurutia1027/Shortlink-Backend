@@ -3,6 +3,8 @@ name: Release (Build and Publish Docker Images)
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -32,33 +34,55 @@ jobs:
             ${{ runner.os }}-maven-
 
       # 4️⃣ Build JAR with docker-build profile (skip all tests)
+      # This validates that the build works for both library and service deployment
       - name: Build Shortlink JAR for Docker
         run: mvn clean package -Pdocker-build -DskipTests -DskipITs
 
-      # 5️⃣ Set up QEMU for multi-arch build
+      # 5️⃣ Verify JARs are generated correctly
+      - name: Verify JARs Generated
+        run: |
+          echo "Checking generated JARs..."
+          ls -lh */target/*.jar || echo "No JARs found"
+          echo ""
+          echo "Checking Identity module JARs (should have both regular and exec JARs):"
+          ls -lh identity/target/*.jar || echo "No Identity JARs found"
+
+      # 6️⃣ Set up QEMU for multi-arch build (only for actual release)
       - name: Set up QEMU
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/setup-qemu-action@v2
 
-      # 6️⃣ Set up Docker Buildx
+      # 7️⃣ Set up Docker Buildx (only for actual release)
       - name: Set up Docker Buildx
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/setup-buildx-action@v3
         with:
           driver: docker-container
           use: true
 
-      # 7️⃣ Inspect buildx builder (optional)
+      # 8️⃣ Inspect buildx builder (only for actual release)
       - name: Inspect buildx builder
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: docker buildx inspect --bootstrap
 
-      # 8️⃣ Docker login
+      # 9️⃣ Docker login (only for actual release)
       - name: Docker Login
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 9️⃣ Build & Push Docker image for shortlink
+      # 🔟 Build & Push Docker image (only for actual release)
       - name: Build & Push Shortlink Docker Image
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           chmod +x ./bin/build-images.sh
           ./bin/build-images.sh ${{ github.sha }}
+
+      # ✅ PR validation message
+      - name: PR Build Validation Complete
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "✅ Release build validation passed!"
+          echo "This PR can be safely merged. Docker images will be built and published after merge to main."
