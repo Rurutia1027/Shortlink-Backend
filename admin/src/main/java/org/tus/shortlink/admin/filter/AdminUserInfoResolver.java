@@ -1,46 +1,37 @@
 package org.tus.shortlink.admin.filter;
 
-import com.alibaba.fastjson2.JSON;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.tus.common.domain.redis.CacheService;
-import org.tus.shortlink.admin.entity.User;
 import org.tus.shortlink.base.biz.UserInfoDTO;
 import org.tus.shortlink.base.biz.filter.UserInfoResolver;
-import org.tus.shortlink.base.common.constant.RedisCacheConstant;
+import org.tus.shortlink.identity.client.IdentityClient;
 
 /**
  * Admin module implementation of UserInfoResolver.
  *
- * <p>Resolves user information from token using the following priority:</p>
+ * <p>This resolver delegates to Identity Service (via IdentityClient) to resolve
+ * user information from token. This centralizes identity logic in the Identity module.
+ *
+ * <p>Migration from direct Redis access:
+ * <ul>
+ *     <li>Before: Direct Redis access in AdminUserInfoResolver</li>
+ *     <li>After: Delegates to Identity Service via IdentityClient</li>
+ * </ul>
+ *
+ * <p>Future enhancements (handled by Identity Service):
  * <ol>
  *     <li>SecurityContext (if Spring Security Filter already processed the request)</li>
- *     <li>JWT Token parsing (if JWT support is enabled) </li>
- *     <li>Redis session lookup (when Redis module is ready)</li>
+ *     <li>JWT Token parsing (if JWT support is enabled)</li>
+ *     <li>UUID Token validation</li>
+ *     <li>Redis session lookup (current implementation)</li>
  *     <li>Database query (fallback)</li>
- *     <li>Redis session lookup (implemented)</li>
- *     <li>Database query (fallback - not implemented)</li>
  * </ol>
- * <p>Current implementation</p>
- * - Redis session lookup: Looks up user session stored in Redis with
- * > Key: USER_LOGIN_KEY + username,
- * > Field: token,
- * > Value: JSON(User)
  */
 @Slf4j
 @RequiredArgsConstructor
 public class AdminUserInfoResolver implements UserInfoResolver {
-    private final CacheService cacheService;
+    private final IdentityClient identityClient;
 
-
-    // TODO: Integrates Spring Security (when Spring Security is added)
-    // Check SecurityContextHolder.getContext().getAuthentication() first
-
-    // TODO: Integrate JWT Token Provider (when JWT support is added)
-    // private final JwtTokenProvider jwtTokenProvider;
-
-    // TODO: Integrate User Service (for fallback database query)
-    // private final UserService userService;
 
     @Override
     public UserInfoDTO resolveUserInfo(String token) {
@@ -49,82 +40,13 @@ public class AdminUserInfoResolver implements UserInfoResolver {
             return null;
         }
 
-        // 1. Priority: Check SecurityContext (if Spring Security Filter already processed)
-        // TODO: Implement when Spring Security is added
-        // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
-        //     CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-        //     return UserInfoDTO.builder()
-        //             .userId(userDetails.getUserId())
-        //             .username(userDetails.getUsername())
-        //             .realName(userDetails.getRealName())
-        //             .build();
-        // }
-
-        // 2. Fallback: JWT token parsing (if JWT support is enabled)
-        // TODO: Implement when JWT support is added
-        // if (jwtTokenProvider != null && jwtTokenProvider.isJwtToken(token)) {
-        //     if (jwtTokenProvider.validateToken(token)) {
-        //         return extractFromJwtClaims(token);
-        //     }
-        // }
-
-        // 3. Redis session lookup
-        // Step 1: Get username from reverse mapping (token -> username)
-        // Step 2: Get user info from session hash (username -> {token: use_token})
-        try {
-            String tokenToUsernameKey = RedisCacheConstant.TOKEN_TO_USERNAME_KEY + token;
-            String username = cacheService.get(tokenToUsernameKey, String.class);
-
-            if (username == null || username.isBlank()) {
-                log.debug("No username found for token (token may be invalid for expired)");
-                return null;
-            }
-            log.debug("Found username: {} for token", username);
-            // Now we have username, get user info from session hash
-            return getFromRedisSession(username, token);
-        } catch (Exception e) {
-            log.error("Error resolving user info from token", e);
-            return null;
-        }
+        // Delegate to Identity Service via IdentityClient
+        // Identity Service handles all token validation logic:
+        // - Redis session lookup (current)
+        // - JWT token parsing (future)
+        // - UUID token validation (future)
+        // - Database fallback (future)
+        log.debug("Delegating token validation to Identity Service");
+        return identityClient.validateToken(token);
     }
-
-    /**
-     * Helper method to extract user info from Redis session hash.
-     * This method requires the username to be known.
-     */
-    private UserInfoDTO getFromRedisSession(String username, String token) {
-        try {
-            String loginKey = RedisCacheConstant.USER_LOGIN_KEY + username;
-            log.debug("Looking up user session in Redis. Key: {}, Field: {}", loginKey, token);
-            String userJson = cacheService.hget(loginKey, token, String.class);
-
-            if (userJson != null && !userJson.isBlank()) {
-                User user = JSON.parseObject(userJson, User.class);
-                if (user != null) {
-                    log.debug("Successfully retrieved user from Redis session: {}", user.getUsername());
-                    return UserInfoDTO.builder()
-                            .userId(user.getId() != null ? user.getId().toString() : null)
-                            .username(user.getUsername())
-                            .realName(user.getRealName())
-                            .build();
-                } else {
-                    log.warn("Failed to parse user JSON from Redis session. UserJson: {}", userJson);
-                }
-            } else {
-                log.warn("No user session found in Redis for username: {}, token: {}",
-                        username, token);
-            }
-        } catch (Exception e) {
-            log.error("Failed to parse user info from Redis session for username: {}, token:" +
-                    " {}", username, token, e);
-        }
-        return null;
-    }
-
-    // TODO: Helper methods to be implemented
-    // private UserInfoDTO extractFromSecurityContext(Authentication auth) { ... }
-    // private UserInfoDTO extractFromJwtClaims(String token) { ... }
-    // private UserInfoDTO getFromRedisSession(String token) { ... }
-    // private UserInfoDTO queryFromDatabase(String token) { ... }
 }

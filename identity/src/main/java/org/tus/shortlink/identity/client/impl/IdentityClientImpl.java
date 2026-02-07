@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.stereotype.Component;
 import org.tus.shortlink.base.biz.UserInfoDTO;
 import org.tus.shortlink.identity.client.IdentityClient;
+import org.tus.shortlink.identity.client.impl.IdentityHttpClient;
 import org.tus.shortlink.identity.service.IdentityService;
 
 /**
@@ -27,9 +28,9 @@ import org.tus.shortlink.identity.service.IdentityService;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnMissingBean
+@ConditionalOnMissingBean(IdentityHttpClient.class)
 public class IdentityClientImpl implements IdentityClient {
-    private IdentityService identityService;
+    private final IdentityService identityService;
 
     @Override
     public UserInfoDTO validateToken(String token) {

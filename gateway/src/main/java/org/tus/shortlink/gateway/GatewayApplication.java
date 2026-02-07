@@ -3,6 +3,7 @@ package org.tus.shortlink.gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
  * Spring Cloud Gateway Application
@@ -23,6 +24,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * </p>
  */
 @SpringBootApplication
+@ComponentScan(basePackages = {
+        "org.tus.shortlink.gateway",
+        "org.tus.shortlink.identity"  // Scan Identity module for IdentityClient beans
+})
 public class GatewayApplication {
     public static void main(String[] args) {
         SpringApplication.run(GatewayApplication.class, args);

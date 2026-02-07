@@ -2,8 +2,8 @@ FROM eclipse-temurin:17-jdk
 
 WORKDIR /app
 
-# Copy prebuilt Spring Boot fat JAR
-COPY target/shortlink-identity-1.0-SNAPSHOT.jar app.jar
+# Copy prebuilt Spring Boot fat JAR (with -exec classifier)
+COPY target/shortlink-identity-1.0-SNAPSHOT-exec.jar app.jar
 
 # Expose application port
 EXPOSE 8083
