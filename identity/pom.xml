@@ -69,10 +69,17 @@
 
     <build>
         <plugins>
+            <!-- Always generate regular JAR for library usage -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+            </plugin>
+            <!-- Spring Boot plugin: skip repackaging by default to generate regular JAR -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <skip>true</skip> <!-- Skip repackaging by default - generates regular JAR for library usage -->
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
@@ -89,19 +96,28 @@
             <id>docker-build</id>
             <build>
                 <plugins>
+                    <!-- Generate fat JAR with classifier 'exec' for Docker deployment -->
                     <plugin>
                         <groupId>org.springframework.boot</groupId>
                         <artifactId>spring-boot-maven-plugin</artifactId>
                         <executions>
                             <execution>
+                                <id>repackage</id>
                                 <goals>
                                     <goal>repackage</goal>
                                 </goals>
+                                <configuration>
+                                    <classifier>exec</classifier> <!-- Generate shortlink-identity-1.0-SNAPSHOT-exec.jar -->
+                                    <mainClass>org.tus.shortlink.identity.IdentityApplication</mainClass>
+                                    <excludes>
+                                        <exclude>
+                                            <groupId>org.projectlombok</groupId>
+                                            <artifactId>lombok</artifactId>
+                                        </exclude>
+                                    </excludes>
+                                </configuration>
                             </execution>
                         </executions>
-                        <configuration>
-                            <mainClass>org.tus.shortlink.identity.IdentityApplication</mainClass>
-                        </configuration>
                     </plugin>
                 </plugins>
             </build>

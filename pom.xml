@@ -20,14 +20,14 @@
          ========================= -->
     <modules>
         <module>base</module>
+        <module>persistence</module>
+        <module>redis</module>
+        <module>identity</module>
         <module>admin</module>
         <module>shortlink</module>
-        <module>identity</module>
-        <module>clients</module>
-        <module>redis</module>
-        <module>flyway</module>
-        <module>persistence</module>
         <module>gateway</module>
+        <module>clients</module>
+        <module>flyway</module>
     </modules>
 
     <!-- =========================

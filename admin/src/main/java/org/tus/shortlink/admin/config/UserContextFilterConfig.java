@@ -5,10 +5,10 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
-import org.tus.common.domain.redis.CacheService;
 import org.tus.shortlink.admin.filter.AdminUserInfoResolver;
 import org.tus.shortlink.base.biz.filter.UserContextFilter;
 import org.tus.shortlink.base.biz.filter.UserTransmitFilter;
+import org.tus.shortlink.identity.client.IdentityClient;
 
 /**
  * Configuration for UserContext filters in admin module.
@@ -20,29 +20,38 @@ import org.tus.shortlink.base.biz.filter.UserTransmitFilter;
  * </ol>
  *
  * <p>When requests come through Gateway:
- * - Gateway's UserContextGatewayFilter extracts token and resolves user info
- * - Gateway adds user info to request headers (X-Username, X-User-Id, X-Real-Name)
- * - UserTransmitFilter reads these headers and sets UserContext
+ * <ul>
+ *     <li>Gateway's UserContextGatewayFilter extracts token</li>
+ *     <li>Gateway calls Identity Service (via IdentityClient) to resolve user info</li>
+ *     <li>Gateway adds user info to request headers (X-Username, X-User-Id, X-Real-Name)</li>
+ *     <li>UserTransmitFilter reads these headers and sets UserContext</li>
+ * </ul>
  *
  * <p>When requests come directly (bypassing Gateway):
- * - UserContextFilter extracts token from request
- * - AdminUserInfoResolver resolves user info from Redis
- * - UserContextFilter sets UserContext
+ * <ul>
+ *     <li>UserContextFilter extracts token from request</li>
+ *     <li>AdminUserInfoResolver delegates to Identity Service (via IdentityClient)</li>
+ *     <li>Identity Service resolves user info from token</li>
+ *     <li>UserContextFilter sets UserContext</li>
+ * </ul>
  *
  * <p>The filter uses strategy pattern:
- * - UserContextFilter (base): Generic token extraction logic
- * - AdminUserInfoResolver (admin): Admin-specific user resolution logic
+ * <ul>
+ *     <li>UserContextFilter (base): Generic token extraction logic</li>
+ *     <li>AdminUserInfoResolver (admin): Delegates to Identity Service</li>
+ *     <li>Identity Service: Centralized identity logic</li>
+ * </ul>
  */
 @Configuration
 public class UserContextFilterConfig {
     /**
      * Create AdminUserInfoResolver bean.
-     * Requires CacheService for Redis session lookup.
-     * TODO: This resolver will be enhanced as we add Redis, JWT, and Spring Security support.
+     * Uses IdentityClient to delegate token validation to Identity Service.
+     * This removes direct Redis dependency from admin module.
      */
     @Bean
-    public AdminUserInfoResolver adminUserInfoResolver(CacheService cacheService) {
-        return new AdminUserInfoResolver(cacheService);
+    public AdminUserInfoResolver adminUserInfoResolver(IdentityClient identityClient) {
+        return new AdminUserInfoResolver(identityClient);
     }
 
     /**
@@ -61,8 +70,10 @@ public class UserContextFilterConfig {
     }
 
     /**
-     * Register UserContextFilter with AdminUserInfoResolver.
-     * Order: HIGHEST_PRECEDENCE to ensure it runs early in the filter chain.
+     * Register UserContextFilter with AdminUserInfoResolver as fallback.
+     * This filter runs after UserTransmitFilter and only sets UserContext if not already set.
+     * Used for direct access (bypassing Gateway) or when Gateway headers are not present.
+     * Order: HIGHEST_PRECEDENCE + 1 to run after UserTransmitFilter.
      */
     @Bean
     public FilterRegistrationBean<Filter> userContextFilter(AdminUserInfoResolver userInfoResolver) {
@@ -70,7 +81,7 @@ public class UserContextFilterConfig {
         registration.setFilter(new UserContextFilter(userInfoResolver));
         registration.addUrlPatterns("/api/shortlink/admin/v1/*");
         registration.setName("userContextFilter");
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1); // Run first in filter chains
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1); // Run after UserTransmitFilter
         return registration;
     }
 }
