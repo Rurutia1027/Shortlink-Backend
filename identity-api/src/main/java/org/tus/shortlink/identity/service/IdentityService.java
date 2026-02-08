@@ -1,6 +1,7 @@
 package org.tus.shortlink.identity.service;
 
 import org.tus.shortlink.base.biz.UserInfoDTO;
+import org.tus.shortlink.identity.enums.TokenType;
 
 /**
  * Identity Service Interface
@@ -38,4 +39,45 @@ public interface IdentityService {
      * @return userInfoDTO if token is valid and user found, null otherwise
      */
     UserInfoDTO validateToken(String token);
+
+
+    /**
+     * Generate a token for a user
+     *
+     * <p>Generates either a JWT or UUID token based on the specified type.
+     * The token is stored in the database for revocation tracking.
+     *
+     * @param userInfo     User information to include in token
+     * @param tokenType    Type of token to generate (JWT or UUID)
+     * @param expirationMs Expiration time in milliseconds (null for no expiration)
+     * @return Generate token string
+     */
+    String generateToken(UserInfoDTO userInfo, TokenType tokenType, Long expirationMs);
+
+    /**
+     * Generate a token with default expiration
+     *
+     * @param userInfo  User information
+     * @param tokenType Type of token to generate
+     * @return Generated token string
+     */
+    default String generateToken(UserInfoDTO userInfo, TokenType tokenType) {
+        return generateToken(userInfo, tokenType, null);
+    }
+
+    /**
+     * Revoke a token
+     *
+     * @param token Token string to revoke
+     * @return true if token was revoked, false if token not found or already revoked
+     */
+    boolean revokeToken(String token);
+
+    /**
+     * Revoke all tokens for a user
+     *
+     * @param userId User ID
+     * @return Number of tokens revoked
+     */
+    int revokeAllUserTokens(String userId);
 }
